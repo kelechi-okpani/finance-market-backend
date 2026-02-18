@@ -1,40 +1,98 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/create-next-app).
+# VaultStock API
+
+Backend API for the [VaultStock Investment Platform](https://stock-portfolio-ruby-five.vercel.app), built with **Next.js 16** (App Router) and **MongoDB**.
+
+## Tech Stack
+
+| Layer | Technology |
+|-------|-----------|
+| Framework | Next.js 16 (App Router, API only) |
+| Language | TypeScript |
+| Database | MongoDB (Mongoose ODM) |
+| Auth | JWT + bcryptjs |
+| Stock Data | MarketStack API |
+| Hosting | Vercel |
 
 ## Getting Started
 
-First, run the development server:
+### 1. Clone & Install
+
+```bash
+git clone https://github.com/ekenmapeter/stockinvest_api.git
+cd stockinvest_api
+npm install
+```
+
+### 2. Environment Variables
+
+Copy `.env.example` to `.env.local` and fill in your values:
+
+```bash
+cp .env.example .env.local
+```
+
+| Variable | Description |
+|----------|-------------|
+| `MONGODB_URI` | MongoDB connection string (e.g. MongoDB Atlas) |
+| `JWT_SECRET` | Secret key for JWT token signing |
+| `MARKETSTACK_API_KEY` | MarketStack API key for stock data |
+| `FRONTEND_URL` | Frontend URL for CORS whitelist |
+
+### 3. Run Development Server
 
 ```bash
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+API will be available at `http://localhost:3000`
 
-You can start editing the page by modifying `app/route.ts`. The page auto-updates as you edit the file.
+### 4. Initial Setup
 
-## Learn More
+Create the first admin account by sending a POST request:
 
-To learn more about Next.js, take a look at the following resources:
+```bash
+curl -X POST http://localhost:3000/api/auth/setup \
+  -H "Content-Type: application/json" \
+  -d '{"firstName":"Admin","lastName":"User","email":"admin@example.com","password":"your_password"}'
+```
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+## API Endpoints
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+### Health Check
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api` | API info & endpoint listing |
 
-## Deploy on Vercel
+### Authentication
+| Method | Endpoint | Description | Auth |
+|--------|----------|-------------|------|
+| POST | `/api/auth/setup` | Create initial admin (one-time) | None |
+| POST | `/api/auth/register` | Request an account | None |
+| POST | `/api/auth/login` | Sign in, get JWT token | None |
+| GET | `/api/auth/me` | Get current user profile | Bearer |
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+### Admin
+| Method | Endpoint | Description | Auth |
+|--------|----------|-------------|------|
+| GET | `/api/admin/dashboard` | Dashboard stats | Admin |
+| GET | `/api/admin/requests` | List account requests | Admin |
+| PUT | `/api/admin/requests/:id` | Approve/reject request | Admin |
+| GET | `/api/admin/users` | List all users | Admin |
+| PUT | `/api/admin/users/:id` | Update user | Admin |
+| DELETE | `/api/admin/users/:id` | Delete user | Admin |
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+### Coming Soon
+- Portfolio management
+- Market data (MarketStack)
+- Investment monitoring
+- Funds management
+- Portfolio transfers
+- Profile & settings
 
-## API Routes
+## Deployment
 
-This directory contains example API routes for the headless API app.
+This project is configured for **Vercel** deployment. Push to the GitHub repo and connect it to Vercel. Set the environment variables in Vercel's dashboard.
 
-For more details, see [route.js file convention](https://nextjs.org/docs/app/api-reference/file-conventions/route).
+## License
+
+MIT
