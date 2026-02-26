@@ -1,12 +1,13 @@
 import { NextRequest } from "next/server";
-import { mockCommodities } from "@/lib/mock-data";
+import connectDB from "@/lib/db";
+import Commodity from "@/lib/models/Commodity";
 import { corsResponse, corsOptionsResponse } from "@/lib/cors";
 
 export async function OPTIONS(request: NextRequest) {
     return corsOptionsResponse(request.headers.get("origin"));
 }
 
-// GET /api/market/commodities?type=precious_metal&trend=bullish
+// GET /api/market/commodities?type=precious_metal&trend=bullish&investmentType=etf
 export async function GET(request: NextRequest) {
     const origin = request.headers.get("origin");
     const { searchParams } = new URL(request.url);
@@ -16,20 +17,28 @@ export async function GET(request: NextRequest) {
     const investmentType = searchParams.get("investmentType");
     const search = searchParams.get("search");
 
-    let commodities = [...mockCommodities];
+    try {
+        await connectDB();
 
-    if (type) commodities = commodities.filter(c => c.type === type);
-    if (trend) commodities = commodities.filter(c => c.marketTrend === trend);
-    if (investmentType) commodities = commodities.filter(c => c.investmentType === investmentType);
-    if (search) commodities = commodities.filter(c =>
-        c.name.toLowerCase().includes(search.toLowerCase()) ||
-        c.symbol.toLowerCase().includes(search.toLowerCase())
-    );
+        const filter: Record<string, any> = {};
+        if (type) filter.type = type;
+        if (trend) filter.marketTrend = trend;
+        if (investmentType) filter.investmentType = investmentType;
+        if (search) filter.$or = [
+            { name: { $regex: search, $options: "i" } },
+            { symbol: { $regex: search, $options: "i" } },
+        ];
 
-    return corsResponse({
-        commodities,
-        total: commodities.length,
-        availableTypes: ["precious_metal", "energy", "agricultural"],
-        availableInvestmentTypes: ["physical", "etf", "futures"],
-    }, 200, origin);
+        const commodities = await Commodity.find(filter).lean();
+
+        return corsResponse({
+            commodities,
+            total: commodities.length,
+            availableTypes: ["precious_metal", "energy", "agricultural"],
+            availableInvestmentTypes: ["physical", "etf", "futures"],
+        }, 200, origin);
+
+    } catch (err: any) {
+        return corsResponse({ error: "Failed to fetch commodities", details: err.message }, 500, origin);
+    }
 }

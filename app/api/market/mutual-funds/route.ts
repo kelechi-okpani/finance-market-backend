@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
-import { mockMutualFunds } from "@/lib/mock-data";
+import connectDB from "@/lib/db";
+import MutualFund from "@/lib/models/MutualFund";
 import { corsResponse, corsOptionsResponse } from "@/lib/cors";
 
 export async function OPTIONS(request: NextRequest) {
@@ -15,20 +16,29 @@ export async function GET(request: NextRequest) {
     const fundType = searchParams.get("fundType");
     const search = searchParams.get("search");
 
-    let funds = [...mockMutualFunds];
+    try {
+        await connectDB();
 
-    if (fundFamily) funds = funds.filter(f => f.fundFamily.toLowerCase() === fundFamily.toLowerCase());
-    if (fundType) funds = funds.filter(f => f.fundType === fundType);
-    if (search) funds = funds.filter(f =>
-        f.name.toLowerCase().includes(search.toLowerCase()) ||
-        f.symbol.toLowerCase().includes(search.toLowerCase()) ||
-        f.managerName.toLowerCase().includes(search.toLowerCase())
-    );
+        const filter: Record<string, any> = {};
+        if (fundFamily) filter.fundFamily = { $regex: fundFamily, $options: "i" };
+        if (fundType) filter.fundType = fundType;
+        if (search) filter.$or = [
+            { name: { $regex: search, $options: "i" } },
+            { symbol: { $regex: search, $options: "i" } },
+            { managerName: { $regex: search, $options: "i" } },
+        ];
 
-    return corsResponse({
-        funds,
-        total: funds.length,
-        availableFamilies: [...new Set(mockMutualFunds.map(f => f.fundFamily))],
-        availableTypes: ["index", "actively_managed", "balanced"],
-    }, 200, origin);
+        const funds = await MutualFund.find(filter).lean();
+        const families = await MutualFund.distinct("fundFamily");
+
+        return corsResponse({
+            funds,
+            total: funds.length,
+            availableFamilies: families,
+            availableTypes: ["index", "actively_managed", "balanced"],
+        }, 200, origin);
+
+    } catch (err: any) {
+        return corsResponse({ error: "Failed to fetch mutual funds", details: err.message }, 500, origin);
+    }
 }

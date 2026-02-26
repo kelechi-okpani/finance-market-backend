@@ -1,13 +1,13 @@
 import { NextRequest } from "next/server";
-import { mockStocks } from "@/lib/mock-data";
+import connectDB from "@/lib/db";
+import Stock from "@/lib/models/Stock";
 import { corsResponse, corsOptionsResponse } from "@/lib/cors";
 
 export async function OPTIONS(request: NextRequest) {
     return corsOptionsResponse(request.headers.get("origin"));
 }
 
-// GET /api/market/stocks
-// Query params: ?sector=Technology&market=NASDAQ&trend=bullish&search=apple&limit=20
+// GET /api/market/stocks?sector=Technology&market=NASDAQ&trend=bullish&search=apple&limit=50
 export async function GET(request: NextRequest) {
     const origin = request.headers.get("origin");
     const { searchParams } = new URL(request.url);
@@ -18,25 +18,34 @@ export async function GET(request: NextRequest) {
     const search = searchParams.get("search");
     const limit = parseInt(searchParams.get("limit") || "50");
 
-    let stocks = [...mockStocks];
+    try {
+        await connectDB();
 
-    if (sector) stocks = stocks.filter(s => s.sector.toLowerCase() === sector.toLowerCase());
-    if (market) stocks = stocks.filter(s => s.market.toLowerCase() === market.toLowerCase());
-    if (trend) stocks = stocks.filter(s => s.marketTrend === trend);
-    if (search) stocks = stocks.filter(s =>
-        s.name.toLowerCase().includes(search.toLowerCase()) ||
-        s.symbol.toLowerCase().includes(search.toLowerCase())
-    );
+        // Build dynamic MongoDB filter
+        const filter: Record<string, any> = {};
+        if (sector) filter.sector = { $regex: sector, $options: "i" };
+        if (market) filter.market = { $regex: market, $options: "i" };
+        if (trend) filter.marketTrend = trend;
+        if (search) filter.$or = [
+            { name: { $regex: search, $options: "i" } },
+            { symbol: { $regex: search, $options: "i" } },
+        ];
 
-    const gainers = stocks.filter(s => s.change > 0).length;
-    const losers = stocks.filter(s => s.change < 0).length;
-    const sectors = [...new Set(stocks.map(s => s.sector))];
+        const stocks = await Stock.find(filter).limit(limit).lean();
+        const total = await Stock.countDocuments(filter);
+        const gainers = await Stock.countDocuments({ change: { $gt: 0 } });
+        const losers = await Stock.countDocuments({ change: { $lt: 0 } });
+        const sectors = await Stock.distinct("sector");
 
-    return corsResponse({
-        stocks: stocks.slice(0, limit),
-        total: stocks.length,
-        stats: { gainers, losers, sectors: sectors.length },
-        availableSectors: sectors,
-        availableMarkets: [...new Set(mockStocks.map(s => s.market))],
-    }, 200, origin);
+        return corsResponse({
+            stocks,
+            total,
+            stats: { gainers, losers, sectors: sectors.length },
+            availableSectors: sectors,
+            availableMarkets: await Stock.distinct("market"),
+        }, 200, origin);
+
+    } catch (err: any) {
+        return corsResponse({ error: "Failed to fetch stocks", details: err.message }, 500, origin);
+    }
 }

@@ -1,31 +1,49 @@
 import { NextRequest } from "next/server";
-import { mockStocks, mockBonds, mockETFs, mockMutualFunds, mockCommodities } from "@/lib/mock-data";
+import connectDB from "@/lib/db";
+import Stock from "@/lib/models/Stock";
+import Bond from "@/lib/models/Bond";
+import ETF from "@/lib/models/ETF";
+import MutualFund from "@/lib/models/MutualFund";
+import Commodity from "@/lib/models/Commodity";
 import { corsResponse, corsOptionsResponse } from "@/lib/cors";
 
 export async function OPTIONS(request: NextRequest) {
     return corsOptionsResponse(request.headers.get("origin"));
 }
 
-// GET /api/market/screener - Real counts from mock data
+// GET /api/market/screener
 export async function GET(request: NextRequest) {
     const origin = request.headers.get("origin");
 
-    const sectors = [...new Set(mockStocks.map(s => s.sector))];
-    const gainers = mockStocks.filter(s => s.change > 0);
-    const losers = mockStocks.filter(s => s.change < 0);
+    try {
+        await connectDB();
 
-    const data = {
-        totalStocks: mockStocks.length,
-        totalBonds: mockBonds.length,
-        totalETFs: mockETFs.length,
-        mutualFunds: mockMutualFunds.length,
-        commodities: mockCommodities.length,
-        sectors: sectors.length,
-        gainers: gainers.length,
-        losers: losers.length,
-        topGainers: gainers.sort((a, b) => b.changePercent - a.changePercent).slice(0, 5).map(s => ({ symbol: s.symbol, name: s.name, changePercent: s.changePercent, price: s.price })),
-        topLosers: losers.sort((a, b) => a.changePercent - b.changePercent).slice(0, 5).map(s => ({ symbol: s.symbol, name: s.name, changePercent: s.changePercent, price: s.price })),
-    };
+        const [
+            totalStocks, totalBonds, totalETFs, totalMutualFunds, totalCommodities,
+            gainers, losers, sectors, topGainers, topLosers
+        ] = await Promise.all([
+            Stock.countDocuments(),
+            Bond.countDocuments(),
+            ETF.countDocuments(),
+            MutualFund.countDocuments(),
+            Commodity.countDocuments(),
+            Stock.countDocuments({ change: { $gt: 0 } }),
+            Stock.countDocuments({ change: { $lt: 0 } }),
+            Stock.distinct("sector"),
+            Stock.find({ change: { $gt: 0 } }).sort({ changePercent: -1 }).limit(5).select("symbol name price changePercent").lean(),
+            Stock.find({ change: { $lt: 0 } }).sort({ changePercent: 1 }).limit(5).select("symbol name price changePercent").lean(),
+        ]);
 
-    return corsResponse(data, 200, origin);
+        return corsResponse({
+            totalStocks, totalBonds, totalETFs,
+            mutualFunds: totalMutualFunds,
+            commodities: totalCommodities,
+            sectors: sectors.length,
+            gainers, losers,
+            topGainers, topLosers,
+        }, 200, origin);
+
+    } catch (err: any) {
+        return corsResponse({ error: "Failed to fetch screener data", details: err.message }, 500, origin);
+    }
 }

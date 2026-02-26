@@ -1,28 +1,37 @@
 import { NextRequest } from "next/server";
-import { mockETFs } from "@/lib/mock-data";
+import connectDB from "@/lib/db";
+import ETF from "@/lib/models/ETF";
 import { corsResponse, corsOptionsResponse } from "@/lib/cors";
 
 export async function OPTIONS(request: NextRequest) {
     return corsOptionsResponse(request.headers.get("origin"));
 }
 
-// GET /api/market/etfs?isIndexBased=true&isActivelyManaged=false&search=vanguard
+// GET /api/market/etfs?isIndexBased=true&search=vanguard
 export async function GET(request: NextRequest) {
     const origin = request.headers.get("origin");
     const { searchParams } = new URL(request.url);
 
-    const search = searchParams.get("search");
     const isIndexBased = searchParams.get("isIndexBased");
     const isActivelyManaged = searchParams.get("isActivelyManaged");
+    const search = searchParams.get("search");
 
-    let etfs = [...mockETFs];
+    try {
+        await connectDB();
 
-    if (isIndexBased !== null) etfs = etfs.filter(e => e.isIndexBased === (isIndexBased === "true"));
-    if (isActivelyManaged !== null) etfs = etfs.filter(e => e.isActivelyManaged === (isActivelyManaged === "true"));
-    if (search) etfs = etfs.filter(e =>
-        e.name.toLowerCase().includes(search.toLowerCase()) ||
-        e.symbol.toLowerCase().includes(search.toLowerCase())
-    );
+        const filter: Record<string, any> = {};
+        if (isIndexBased !== null) filter.isIndexBased = isIndexBased === "true";
+        if (isActivelyManaged !== null) filter.isActivelyManaged = isActivelyManaged === "true";
+        if (search) filter.$or = [
+            { name: { $regex: search, $options: "i" } },
+            { symbol: { $regex: search, $options: "i" } },
+        ];
 
-    return corsResponse({ etfs, total: etfs.length }, 200, origin);
+        const etfs = await ETF.find(filter).lean();
+
+        return corsResponse({ etfs, total: etfs.length }, 200, origin);
+
+    } catch (err: any) {
+        return corsResponse({ error: "Failed to fetch ETFs", details: err.message }, 500, origin);
+    }
 }
