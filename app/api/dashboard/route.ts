@@ -20,6 +20,28 @@ export async function GET(request: NextRequest) {
     try {
         await connectDB();
 
+        // IF USER IS NOT APPROVED: Return a Journey Summary / Progress state
+        if (auth.user!.status !== "approved") {
+            const OnboardingProgress = (await import("@/lib/models/OnboardingProgress")).default;
+            const progress = await OnboardingProgress.findOne({ userId: auth.user!._id });
+
+            return corsResponse({
+                locked: true,
+                status: auth.user!.status,
+                onboardingStep: auth.user!.onboardingStep || 7,
+                progress: progress || { currentStep: 7, completedSteps: [] },
+                message: "Your account is being reviewed. Vital features are locked.",
+                summary: {
+                    fullName: `${auth.user!.firstName} ${auth.user!.lastName}`,
+                    email: auth.user!.email,
+                    kycVerified: auth.user!.kycVerified,
+                    agreementSigned: auth.user!.agreementSigned,
+                    hasProfilePicture: !!auth.user!.headshotUrl,
+                }
+            }, 200, origin);
+        }
+
+        // IF APPROVED: Return full rich dashboard data
         const [portfolios, holdings] = await Promise.all([
             Portfolio.find({ userId: auth.user!._id }),
             Holding.find({ userId: auth.user!._id })

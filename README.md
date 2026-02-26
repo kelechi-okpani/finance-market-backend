@@ -2,97 +2,137 @@
 
 Backend API for the [VaultStock Investment Platform](https://stock-portfolio-ruby-five.vercel.app), built with **Next.js 16** (App Router) and **MongoDB**.
 
-## Tech Stack
+## 🚀 Quick Links
+- **API Base URL**: `https://stockinvest-api.vercel.app` (Production)
+- **Local Dev**: `http://localhost:3000`
 
-| Layer | Technology |
-|-------|-----------|
-| Framework | Next.js 16 (App Router, API only) |
-| Language | TypeScript |
-| Database | MongoDB (Mongoose ODM) |
-| Auth | JWT + bcryptjs |
-| Stock Data | MarketStack API |
-| Hosting | Vercel |
+---
 
-## Getting Started
+## 🛠️ Tech Stack
+- **Framework**: Next.js 16 (App Router)
+- **Database**: MongoDB Atlas (Mongoose ODM)
+- **Authentication**: JWT (Stateless) + bcryptjs
+- **Seeding Tool**: tsx
+- **Hosting**: Vercel
 
-### 1. Clone & Install
+---
 
+## 🏃 Getting Started
+
+### 1. Install Dependencies
 ```bash
-git clone https://github.com/ekenmapeter/stockinvest_api.git
-cd stockinvest_api
 npm install
 ```
 
 ### 2. Environment Variables
-
-Copy `.env.example` to `.env.local` and fill in your values:
-
-```bash
-cp .env.example .env.local
-```
-
+Create `.env.local`:
 | Variable | Description |
 |----------|-------------|
-| `MONGODB_URI` | MongoDB connection string (e.g. MongoDB Atlas) |
-| `JWT_SECRET` | Secret key for JWT token signing |
-| `MARKETSTACK_API_KEY` | MarketStack API key for stock data |
-| `FRONTEND_URL` | Frontend URL for CORS whitelist |
+| `MONGODB_URI` | MongoDB Atlas Connection String |
+| `JWT_SECRET` | Secret key for JWT |
+| `FRONTEND_URL` | e.g. `http://localhost:3001` (for CORS) |
 
-### 3. Run Development Server
-
+### 3. Seed the Database
+Populate MongoDB with the mock financial dataset (Stocks, Bonds, ETFs, etc.):
 ```bash
-npm run dev
+npm run seed
 ```
 
-API will be available at `http://localhost:3000`
+---
 
-### 4. Initial Setup
+## 📋 Comprehensive API Documentation
 
-Create the first admin account by sending a POST request:
-
-```bash
-curl -X POST http://localhost:3000/api/auth/setup \
-  -H "Content-Type: application/json" \
-  -d '{"firstName":"Admin","lastName":"User","email":"admin@example.com","password":"your_password"}'
-```
-
-## API Endpoints
-
-### Health Check
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/api` | API info & endpoint listing |
-
-### Authentication
+### 🛡️ Authentication & Initial Setup
 | Method | Endpoint | Description | Auth |
 |--------|----------|-------------|------|
 | POST | `/api/auth/setup` | Create initial admin (one-time) | None |
-| POST | `/api/auth/register` | Request an account | None |
-| POST | `/api/auth/login` | Sign in, get JWT token | None |
-| GET | `/api/auth/me` | Get current user profile | Bearer |
+| POST | `/api/auth/register` | Initial account request (Step 1) | None |
+| POST | `/api/auth/login` | Sign in & get JWT Token | None |
+| GET | `/api/auth/me` | Get current user's full profile | Bearer |
 
-### Admin
+### 🚀 Onboarding Journey (Steps 7-15)
+Ensures users never restart; progress is auto-saved.
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/onboarding/status` | Get current progress & auto-recovery data |
+| POST | `/api/onboarding/step7` | Set Password & Sex (Male/Female) |
+| POST | `/api/onboarding/step8` | Identity Verification (ID Upload) |
+| POST | `/api/onboarding/step9` | Address Verification (Address + PoA) |
+| POST | `/api/onboarding/step10` | Account Nominee (Inheritance Details) |
+| POST | `/api/onboarding/step11-12` | Fund Distribution & Settlement Account |
+| POST | `/api/onboarding/step13-14` | FS Service Agreement & Signature |
+| POST | `/api/onboarding/step15` | Selfie/Headshot & Submit for Review |
+
+### � Market Screener (DB Powered)
+Rich financial data served from MongoDB with powerful search and filters.
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/market/screener` | Market overview, stats, gainer/loser counts |
+| GET | `/api/market/search?q=...` | Global search across ALL asset classes |
+| GET | `/api/market/stocks` | Stocks listing with sector/trend filters |
+| GET | `/api/market/stocks/:symbol` | Single stock detailed data |
+| GET | `/api/market/bonds` | Bonds (Government, Corporate, etc.) |
+| GET | `/api/market/etfs` | ETFs with index/managed filters |
+| GET | `/api/market/mutual-funds` | Mutual Funds with fund family filters |
+| GET | `/api/market/commodities` | Commodities (Gold, Oil, Agriculture) |
+
+### 🏦 Portfolio & Investment Management (Real)
+Manage real user assets once account is approved.
 | Method | Endpoint | Description | Auth |
 |--------|----------|-------------|------|
-| GET | `/api/admin/dashboard` | Dashboard stats | Admin |
-| GET | `/api/admin/requests` | List account requests | Admin |
-| PUT | `/api/admin/requests/:id` | Approve/reject request | Admin |
-| GET | `/api/admin/users` | List all users | Admin |
-| PUT | `/api/admin/users/:id` | Update user | Admin |
-| DELETE | `/api/admin/users/:id` | Delete user | Admin |
+| GET | `/api/dashboard` | Main dashboard (Locked status for unapproved) | User |
+| GET | `/api/portfolios` | List all user portfolios | Approved |
+| POST | `/api/portfolios` | Create a new portfolio | Approved |
+| GET | `/api/portfolios/:id` | Get portfolio details | Approved |
+| GET | `/api/portfolios/:id/holdings`| List holdings in a specific portfolio | Approved |
+| POST | `/api/portfolios/:id/holdings`| Add an investment to a portfolio | Approved |
+| GET/PUT/DEL| `/api/portfolios/:id/holdings/:hid`| Manage specific holding | Approved |
+| GET | `/api/investments` | Aggregated view of ALL assets | Approved |
 
-### Coming Soon
-- Portfolio management
-- Market data (MarketStack)
-- Investment monitoring
-- Funds management
-- Portfolio transfers
-- Profile & settings
+### 💸 Funds & Transfers
+| Method | Endpoint | Description | Auth |
+|--------|----------|-------------|------|
+| GET | `/api/funds` | Balance summary and transaction history | Approved |
+| POST | `/api/funds` | Initiate deposit/withdrawal | Approved |
+| GET/POST | `/api/funds/payment-methods`| Manage saved payment methods | Approved |
+| GET | `/api/transfers` | List sent/received portfolio transfers | Approved |
+| POST | `/api/transfers` | Initiate a portfolio transfer | Approved |
+| GET | `/api/transfers/:id` | View specific transfer details | Approved |
 
-## Deployment
+### 👤 Profile & Security
+| Method | Endpoint | Description | Auth |
+|--------|----------|-------------|------|
+| GET/PUT | `/api/profile` | Update profile information | User |
+| PUT | `/api/profile/password` | Change user password | User |
+| GET/POST | `/api/profile/kyc` | Manage KYC status data | User |
+| GET/POST | `/api/profile/agreement`| View/Sign legal agreements | User |
 
-This project is configured for **Vercel** deployment. Push to the GitHub repo and connect it to Vercel. Set the environment variables in Vercel's dashboard.
+### 🧪 Mock Data Endpoints (For Demos)
+Returns static data from the `user-data.ts` mock file.
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/api/mock/user` | Rich profile dummy data |
+| GET | `/api/mock/user/portfolios` | Dummy portfolios |
+| GET | `/api/mock/user/portfolios/:id`| Dummy portfolio details |
+| GET | `/api/mock/user/transactions` | Dummy transaction history |
 
-## License
+### ⚡ Admin & Moderation
+| Method | Endpoint | Description | Auth |
+|--------|----------|-------------|------|
+| GET | `/api/admin/dashboard` | Admin overview stats | Admin |
+| GET | `/api/admin/requests` | List account requests (Step 1) | Admin |
+| PUT | `/api/admin/requests/:id` | Approve/Reject Step 1 request | Admin |
+| GET | `/api/admin/users` | Manage all registered users | Admin |
+| GET/PUT/DEL| `/api/admin/users/:id` | Manage specific user | Admin |
+| POST | `/api/admin/onboarding/approve`| Final approve: Generates **Investor Code**| Admin |
+| POST | `/api/admin/onboarding/reject-document`| Reject specific ID/Address files | Admin |
 
+---
+
+## 🚀 Deployment
+Deployed on Vercel. Database is hosted on MongoDB Atlas.
+CI/CD is triggered on every push to `master`.
+
+---
+## 📄 License
 MIT

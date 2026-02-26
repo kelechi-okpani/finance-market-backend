@@ -74,7 +74,7 @@ export async function getAuthUser(
     return user;
 }
 
-// ─── Require auth middleware (returns user or error response) ─
+// ─── Require auth (logged in only) ─────────────────────────
 export async function requireAuth(
     request: NextRequest
 ): Promise<{ user?: IUser; error?: Response }> {
@@ -89,11 +89,22 @@ export async function requireAuth(
         };
     }
 
-    if (user.status !== "approved") {
+    return { user };
+}
+
+// ─── Require approved (logged in + verified by admin) ───────
+export async function requireApproved(
+    request: NextRequest
+): Promise<{ user?: IUser; error?: Response }> {
+    const { user, error } = await requireAuth(request);
+    if (error) return { error };
+
+    if (user!.status !== "approved") {
         return {
             error: new Response(
                 JSON.stringify({
                     error: "Account not approved. Please wait for admin approval.",
+                    status: user!.status
                 }),
                 { status: 403, headers: { "Content-Type": "application/json" } }
             ),
@@ -107,10 +118,10 @@ export async function requireAuth(
 export async function requireAdmin(
     request: NextRequest
 ): Promise<{ user?: IUser; error?: Response }> {
-    const result = await requireAuth(request);
-    if (result.error) return result;
+    const { user, error } = await requireAuth(request);
+    if (error) return { error };
 
-    if (result.user!.role !== "admin") {
+    if (user!.role !== "admin") {
         return {
             error: new Response(
                 JSON.stringify({ error: "Forbidden. Admin access required." }),
@@ -119,5 +130,5 @@ export async function requireAdmin(
         };
     }
 
-    return result;
+    return { user };
 }

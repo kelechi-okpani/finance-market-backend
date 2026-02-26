@@ -3,7 +3,7 @@ import connectDB from "@/lib/db";
 import Portfolio from "@/lib/models/Portfolio";
 import PortfolioTransfer from "@/lib/models/PortfolioTransfer";
 import User from "@/lib/models/User";
-import { requireAuth } from "@/lib/auth";
+import { requireApproved } from "@/lib/auth";
 import { corsResponse, corsOptionsResponse } from "@/lib/cors";
 
 export async function OPTIONS(request: NextRequest) {
@@ -14,7 +14,7 @@ export async function OPTIONS(request: NextRequest) {
 export async function GET(request: NextRequest) {
     const origin = request.headers.get("origin");
 
-    const auth = await requireAuth(request);
+    const auth = await requireApproved(request);
     if (auth.error) return auth.error;
 
     try {
@@ -36,7 +36,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
     const origin = request.headers.get("origin");
 
-    const auth = await requireAuth(request);
+    const auth = await requireApproved(request);
     if (auth.error) return auth.error;
 
     try {
