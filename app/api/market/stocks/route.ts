@@ -1,36 +1,42 @@
 import { NextRequest } from "next/server";
-import { getStockQuotes } from "@/lib/marketstack";
+import { mockStocks } from "@/lib/mock-data";
 import { corsResponse, corsOptionsResponse } from "@/lib/cors";
 
 export async function OPTIONS(request: NextRequest) {
     return corsOptionsResponse(request.headers.get("origin"));
 }
 
-// GET /api/market/stocks - Get a list of popular stocks with live data
+// GET /api/market/stocks
+// Query params: ?sector=Technology&market=NASDAQ&trend=bullish&search=apple&limit=20
 export async function GET(request: NextRequest) {
     const origin = request.headers.get("origin");
+    const { searchParams } = new URL(request.url);
 
-    // Default popular stocks logic
-    const popularSymbols = [
-        'AAPL', 'MSFT', 'GOOGL', 'AMZN', 'TSLA', 'NVDA', 'META',
-        'V', 'JPM', 'JNJ', 'WMT', 'PG', 'MA', 'XOM', 'CVX'
-    ];
+    const sector = searchParams.get("sector");
+    const market = searchParams.get("market");
+    const trend = searchParams.get("trend");
+    const search = searchParams.get("search");
+    const limit = parseInt(searchParams.get("limit") || "50");
 
-    try {
-        const quotesMap = await getStockQuotes(popularSymbols);
-        const stocks = Array.from(quotesMap.values());
+    let stocks = [...mockStocks];
 
-        return corsResponse({
-            stocks,
-            total: stocks.length,
-            stats: {
-                gainers: stocks.filter(s => (s.change || 0) > 0).length,
-                losers: stocks.filter(s => (s.change || 0) < 0).length,
-                sectors: 7 // Static for now matching frontend UI
-            }
-        }, 200, origin);
-    } catch (error) {
-        console.error("Market stocks API error:", error);
-        return corsResponse({ error: "Internal server error." }, 500, origin);
-    }
+    if (sector) stocks = stocks.filter(s => s.sector.toLowerCase() === sector.toLowerCase());
+    if (market) stocks = stocks.filter(s => s.market.toLowerCase() === market.toLowerCase());
+    if (trend) stocks = stocks.filter(s => s.marketTrend === trend);
+    if (search) stocks = stocks.filter(s =>
+        s.name.toLowerCase().includes(search.toLowerCase()) ||
+        s.symbol.toLowerCase().includes(search.toLowerCase())
+    );
+
+    const gainers = stocks.filter(s => s.change > 0).length;
+    const losers = stocks.filter(s => s.change < 0).length;
+    const sectors = [...new Set(stocks.map(s => s.sector))];
+
+    return corsResponse({
+        stocks: stocks.slice(0, limit),
+        total: stocks.length,
+        stats: { gainers, losers, sectors: sectors.length },
+        availableSectors: sectors,
+        availableMarkets: [...new Set(mockStocks.map(s => s.market))],
+    }, 200, origin);
 }
