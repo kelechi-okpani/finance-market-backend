@@ -9,18 +9,32 @@ export async function OPTIONS(request: NextRequest) {
     return corsOptionsResponse(request.headers.get("origin"));
 }
 
-// POST /api/auth/login - Sign in
-export async function POST(request: NextRequest) {
+// General login logic used by both GET and POST
+async function handleLogin(request: NextRequest) {
     const origin = request.headers.get("origin");
 
     try {
-        const body = await request.json();
-        const { email, password } = body;
+        let email: string | null = null;
+        let password: string | null = null;
+
+        // Try to get credentials from JSON body (POST)
+        try {
+            const body = await request.json();
+            if (body) {
+                email = body.email;
+                password = body.password;
+            }
+        } catch {
+            // Fallback to query parameters (useful for browser/GET tests)
+            const { searchParams } = new URL(request.url);
+            email = searchParams.get("email");
+            password = searchParams.get("password");
+        }
 
         // Validate required fields
         if (!email || !password) {
             return corsResponse(
-                { error: "Email and password are required." },
+                { error: "Email and password are required. Ensure you are sending a JSON body OR query parameters." },
                 400,
                 origin
             );
@@ -97,4 +111,12 @@ export async function POST(request: NextRequest) {
             origin
         );
     }
+}
+
+export async function POST(request: NextRequest) {
+    return handleLogin(request);
+}
+
+export async function GET(request: NextRequest) {
+    return handleLogin(request);
 }

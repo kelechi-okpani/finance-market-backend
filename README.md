@@ -40,6 +40,48 @@ npm run seed
 
 ---
 
+## 🧪 How to Test (Step-by-Step)
+
+### 1. Base URL
+All requests should be prefixed with:
+*   **Production**: `https://stockinvest-api.vercel.app`
+*   **Local**: `http://localhost:3000`
+
+### 2. Public Market Data (No Auth Required)
+You can test these directly in your browser or Postman.
+*   **List Stocks**: `GET /api/market/stocks?sector=Technology`
+*   **Search All Assets**: `GET /api/market/search?q=gold`
+*   **Screener Stats**: `GET /api/market/screener`
+
+### 3. Authenticated Testing (JWT Required)
+Most user and admin routes require an `Authorization` header.
+
+#### **Step A: Register/Login and get a Token**
+```bash
+# 1. Login
+curl -X POST https://stockinvest-api.vercel.app/api/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"user@example.com", "password":"yourpassword"}'
+```
+*Response will contain a `token`. Copy it.*
+
+#### **Step B: Use Token in Header**
+Include the token in all subsequent requests:
+`Authorization: Bearer <YOUR_TOKEN_HERE>`
+
+### 4. Testing the Onboarding Journey
+The onboarding is a sequence. Your progress is auto-saved.
+1.  **Check Progress**: `GET /api/onboarding/status`
+2.  **Submit Step 7 (Sex/Password)**: `POST /api/onboarding/step7`
+3.  **Submit Step 15 (Headshot)**: `POST /api/onboarding/step15`
+
+### 5. Admin Testing
+To test admin features, log in with an admin account and use the same `Bearer` header for:
+*   **Approve User**: `POST /api/admin/onboarding/approve`
+*   **List Requests**: `GET /api/admin/requests`
+
+---
+
 ## 📋 Comprehensive API Documentation
 
 ### 🛡️ Authentication & Initial Setup
@@ -63,7 +105,7 @@ Ensures users never restart; progress is auto-saved.
 | POST | `/api/onboarding/step13-14` | FS Service Agreement & Signature |
 | POST | `/api/onboarding/step15` | Selfie/Headshot & Submit for Review |
 
-### � Market Screener (DB Powered)
+### 📊 Market Screener (DB Powered)
 Rich financial data served from MongoDB with powerful search and filters.
 | Method | Endpoint | Description |
 |--------|----------|-------------|
