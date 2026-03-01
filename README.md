@@ -85,11 +85,38 @@ To test admin features, log in with an admin account and use the same `Bearer` h
 ## 📋 Comprehensive API Documentation
 
 ### 🛡️ Authentication & Initial Setup
+
+#### 1. Public Account Request (Step 1)
+Users request an account, which goes to "pending" status. Password is NOT collected here.
+*   **Method:** `POST /api/auth/register`
+*   **Body (JSON):**
+    *   `firstName` (String, Required)
+    *   `lastName` (String, Required)
+    *   `email` (String, Required) - Must be unique
+    *   `phone` (String, Optional)
+    *   `message` (String, Optional)
+
+#### 2. Admin Setup / Direct User Creation
+Used by developers or admins to instantly create a fully approved user/admin.
+*   **Method:** `POST /api/auth/setup`
+*   **Body (JSON):**
+    *   `firstName` (String, Required)
+    *   `lastName` (String, Required)
+    *   `email` (String, Required) - Must be unique
+    *   `password` (String, Required)
+
+*Note: The system automatically generates the `passwordHash`, `investorCode`, and other internal `User` schema fields (like `role`, `status`, `agreementSigned`, etc.) during these processes or later in the onboarding journey.*
+
+#### 3. Standard Login
+*   **Method:** `POST` or `GET` `/api/auth/login`
+*   **Body/Params:** `email` (Required), `password` (Required)
+*   **Returns:** JWT Token for the `Authorization: Bearer <token>` header.
+
 | Method | Endpoint | Description | Auth |
 |--------|----------|-------------|------|
-| POST | `/api/auth/setup` | Create initial admin (one-time) | None |
+| POST | `/api/auth/setup` | Create initial admin/approved user | None |
 | POST | `/api/auth/register` | Initial account request (Step 1) | None |
-| POST | `/api/auth/login` | Sign in & get JWT Token | None |
+| POST/GET | `/api/auth/login` | Sign in & get JWT Token | None |
 | GET | `/api/auth/me` | Get current user's full profile | Bearer |
 
 ### 🚀 Onboarding Journey (Steps 7-15)

@@ -16,18 +16,8 @@ export async function POST(request: NextRequest) {
     try {
         await connectDB();
 
-        // Check if any admin already exists
-        const existingAdmin = await User.findOne({ role: "admin" });
-        if (existingAdmin) {
-            return corsResponse(
-                { error: "Admin account already exists. Setup is not allowed." },
-                403,
-                origin
-            );
-        }
-
         const body = await request.json();
-        const { firstName, lastName, email, password } = body;
+        const { firstName, lastName, email, password, role = "user" } = body;
 
         // Validate required fields
         if (!firstName || !lastName || !email || !password) {
@@ -46,28 +36,44 @@ export async function POST(request: NextRequest) {
             );
         }
 
-        // Create admin user
+        // Validate role
+        if (!["admin", "user"].includes(role)) {
+            return corsResponse(
+                { error: "Role must be 'admin' or 'user'." },
+                400,
+                origin
+            );
+        }
+
+        // Generate Investor Code (FS + 9 digits)
+        const investorCode = `FS${Math.floor(100000000 + Math.random() * 900000000).toString()}`;
+
+        // Create user
         const passwordHash = await hashPassword(password);
-        const admin = await User.create({
+        const user = await User.create({
             firstName: firstName.trim(),
             lastName: lastName.trim(),
             email: email.toLowerCase().trim(),
             passwordHash,
-            role: "admin",
-            status: "approved",
+            role,
+            status: "approved", // instantly approve
+            accountCategory: "Retail Investor",
+            investorCode,
             kycVerified: true,
             agreementSigned: true,
+            onboardingStep: 15, // Mark onboarding as complete
         });
 
         return corsResponse(
             {
-                message: "Admin account created successfully.",
+                message: `${role === "admin" ? "Admin" : "User"} account created successfully.`,
                 user: {
-                    id: admin._id,
-                    email: admin.email,
-                    firstName: admin.firstName,
-                    lastName: admin.lastName,
-                    role: admin.role,
+                    id: user._id,
+                    email: user.email,
+                    firstName: user.firstName,
+                    lastName: user.lastName,
+                    role: user.role,
+                    investorCode: user.investorCode,
                 },
             },
             201,
