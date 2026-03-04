@@ -58,10 +58,16 @@ export async function POST(request: NextRequest) {
             role,
             status: "approved", // instantly approve
             accountCategory: "Retail Investor",
+            accountType: "individual",
             investorCode,
+            kycStatus: "verified",
             kycVerified: true,
+            riskTolerance: "moderate",
+            baseCurrency: "USD",
             agreementSigned: true,
             onboardingStep: 15, // Mark onboarding as complete
+            totalBalance: 0,
+            availableCash: 0,
         });
 
         return corsResponse(

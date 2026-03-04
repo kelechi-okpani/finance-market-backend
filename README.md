@@ -5,6 +5,7 @@ Backend API for the [VaultStock Investment Platform](https://stock-portfolio-rub
 ## 🚀 Quick Links
 - **API Base URL**: `https://stockinvest-api.vercel.app` (Production)
 - **Local Dev**: `http://localhost:3000`
+- **Version**: 2.0.0
 
 ---
 
@@ -40,6 +41,73 @@ npm run seed
 
 ---
 
+## 📦 Data Models
+
+### User
+```ts
+User {
+  id, profile: { firstName, lastName, email, avatar, address, country, phoneNumber },
+  settings: { accountType, kycStatus, riskTolerance, baseCurrency },
+  portfolios: [{ id, name, holdings: Investment[] }],
+  cashMovements: CashMovement[],
+  connectedAccounts: ConnectedAccount[],
+  stockTransfers: StockTransfer[],
+  totalBalance, availableCash
+}
+```
+
+### Investment (Holdings)
+```ts
+Investment {
+  id, assetId, symbol, name, shares, avgPrice, currentPrice,
+  value, change, changePercent, purchaseDate,
+  portfolioType: "Growth" | "Retirement" | "Aggressive",
+  performanceHistory: { date, value, gain }[]
+}
+```
+
+### CashMovement (Deposit / Withdrawal)
+```ts
+CashMovement {
+  id, type: "deposit" | "withdrawal",
+  amount, currency, method, status, date
+}
+```
+
+### ConnectedAccount (External Linked Accounts)
+```ts
+ConnectedAccount {
+  id, provider, accountName, lastFour, balance
+}
+```
+
+### StockTransfer
+```ts
+StockTransfer {
+  id, assetSymbol, assetName, shares, valueAtTransfer,
+  fromUser, toUser, date,
+  status: "completed" | "pending" | "rejected",
+  type: "inbound" | "outbound"
+}
+```
+
+### Asset (Market Data — Unified)
+```ts
+Asset {
+  id, symbol, name, price, change, changePercent, volume,
+  type?, marketCap?, yield?, expiry?, strike?,
+  openInterest?, sector?
+}
+```
+
+### Reference Types
+```ts
+LocationData { [country]: { [state]: string[] } }
+GenderOption { label: string, value: string }
+```
+
+---
+
 ## 🧪 How to Test (Step-by-Step)
 
 ### 1. Base URL
@@ -52,13 +120,14 @@ You can test these directly in your browser or Postman.
 *   **List Stocks**: `GET /api/market/stocks?sector=Technology`
 *   **Search All Assets**: `GET /api/market/search?q=gold`
 *   **Screener Stats**: `GET /api/market/screener`
+*   **Locations**: `GET /api/reference/locations`
+*   **Genders**: `GET /api/reference/genders`
 
 ### 3. Authenticated Testing (JWT Required)
 Most user and admin routes require an `Authorization` header.
 
-#### **Step A: Register/Login and get a Token**
+#### **Step A: Login and get a Token**
 ```bash
-# 1. Login
 curl -X POST https://stockinvest-api.vercel.app/api/auth/login \
   -H "Content-Type: application/json" \
   -d '{"email":"user@example.com", "password":"yourpassword"}'
@@ -70,12 +139,46 @@ Include the token in all subsequent requests:
 `Authorization: Bearer <YOUR_TOKEN_HERE>`
 
 ### 4. Testing the Onboarding Journey
-The onboarding is a sequence. Your progress is auto-saved.
+
+#### Option A: Unified KYC (Recommended)
+Submit all KYC data in a single request:
+```bash
+curl -X POST https://stockinvest-api.vercel.app/api/onboarding/kyc \
+  -H "Content-Type: application/json" \
+  -H "Authorization: Bearer <TOKEN>" \
+  -d '{
+    "email": "user@example.com",
+    "password": "securePass123",
+    "sex": "male",
+    "idType": "passport",
+    "country": "United States",
+    "houseNumber": "123",
+    "street": "Main Street",
+    "city": "New York",
+    "state": "New York",
+    "zipCode": "10001",
+    "poaType": "utility_bill",
+    "nomineeName": { "first": "Jane", "middle": "", "last": "Doe" },
+    "nomineeRelationship": "wife",
+    "nomineeAddressSame": true,
+    "partner": "Vanguard",
+    "agreementAccepted": true
+  }'
+```
+
+#### Option B: Step-by-Step (Legacy)
 1.  **Check Progress**: `GET /api/onboarding/status`
 2.  **Submit Step 7 (Sex/Password)**: `POST /api/onboarding/step7`
-3.  **Submit Step 15 (Headshot)**: `POST /api/onboarding/step15`
+3.  **Submit Step 8-15**: Continue through individual endpoints
 
-### 5. Admin Testing
+### 5. Get Full User Profile
+```bash
+curl https://stockinvest-api.vercel.app/api/auth/me \
+  -H "Authorization: Bearer <TOKEN>"
+```
+Returns the nested `User` object with `profile`, `settings`, `portfolios`, `cashMovements`, `connectedAccounts`, `stockTransfers`, `totalBalance`, `availableCash`.
+
+### 6. Admin Testing
 To test admin features, log in with an admin account and use the same `Bearer` header for:
 *   **Approve User**: `POST /api/admin/onboarding/approve`
 *   **List Requests**: `GET /api/admin/requests`
@@ -105,22 +208,43 @@ Used by developers or admins to instantly create a fully approved user/admin.
     *   `email` (String, Required) - Must be unique
     *   `password` (String, Required)
 
-*Note: The system automatically generates the `passwordHash`, `investorCode`, and other internal `User` schema fields (like `role`, `status`, `agreementSigned`, etc.) during these processes or later in the onboarding journey.*
-
 #### 3. Standard Login
 *   **Method:** `POST` or `GET` `/api/auth/login`
-*   **Body/Params:** `email` (Required), `password` (Required)
-*   **Returns:** JWT Token for the `Authorization: Bearer <token>` header.
+*   **Payload:** `{ email, password }`
+*   **Returns:** JWT Token + enriched user object (id, email, firstName, lastName, role, status, sex, investorCode, accountCategory, accountType, kycStatus, kycVerified, riskTolerance, baseCurrency, agreementSigned, onboardingStep, country, avatar)
+
+#### 4. Get Current User (Full Nested Profile)
+*   **Method:** `GET /api/auth/me`
+*   **Auth:** Bearer Token
+*   **Returns:** Nested `User` object with `profile`, `settings`, `portfolios` (including `Investment[]`), `cashMovements`, `connectedAccounts`, `stockTransfers`, `totalBalance`, `availableCash`
 
 | Method | Endpoint | Description | Auth |
 |--------|----------|-------------|------|
 | POST | `/api/auth/setup` | Create initial admin/approved user | None |
 | POST | `/api/auth/register` | Initial account request (Step 1) | None |
 | POST/GET | `/api/auth/login` | Sign in & get JWT Token | None |
-| GET | `/api/auth/me` | Get current user's full profile | Bearer |
+| GET | `/api/auth/me` | Get full nested user profile | Bearer |
 
-### 🚀 Onboarding Journey (Steps 7-15)
-Ensures users never restart; progress is auto-saved.
+### 🚀 Onboarding Journey
+
+#### Unified KYC Onboarding (New)
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/onboarding/kyc` | **Unified** — submit all KYC data in one request |
+
+**Payload:**
+```json
+{
+  "email": "", "password": "", "sex": "", "idType": "", "country": "",
+  "houseNumber": "", "street": "", "city": "", "state": "", "zipCode": "",
+  "poaType": "",
+  "nomineeName": { "first": "", "middle": "", "last": "" },
+  "nomineeRelationship": "", "nomineeAddressSame": true,
+  "partner": "", "agreementAccepted": false
+}
+```
+
+#### Step-by-Step Onboarding (Legacy — still supported)
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | GET | `/api/onboarding/status` | Get current progress & auto-recovery data |
@@ -145,7 +269,7 @@ Rich financial data served from MongoDB with powerful search and filters.
 | GET | `/api/market/mutual-funds` | Mutual Funds with fund family filters |
 | GET | `/api/market/commodities` | Commodities (Gold, Oil, Agriculture) |
 
-### 🏦 Portfolio & Investment Management (Real)
+### 🏦 Portfolio & Investment Management
 Manage real user assets once account is approved.
 | Method | Endpoint | Description | Auth |
 |--------|----------|-------------|------|
@@ -175,6 +299,12 @@ Manage real user assets once account is approved.
 | PUT | `/api/profile/password` | Change user password | User |
 | GET/POST | `/api/profile/kyc` | Manage KYC status data | User |
 | GET/POST | `/api/profile/agreement`| View/Sign legal agreements | User |
+
+### 🌍 Reference Data
+| Method | Endpoint | Description | Auth |
+|--------|----------|-------------|------|
+| GET | `/api/reference/locations` | Country → State → Cities data | None |
+| GET | `/api/reference/genders` | Gender options (label + value) | None |
 
 ### 🧪 Mock Data Endpoints (For Demos)
 Returns static data from the `user-data.ts` mock file.
