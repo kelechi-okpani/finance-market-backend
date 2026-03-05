@@ -20,7 +20,32 @@ export async function POST(request: NextRequest) {
     const origin = request.headers.get("origin");
 
     try {
-        const body = await request.json();
+        let body: any = {};
+        const contentType = request.headers.get("content-type") || "";
+
+        try {
+            if (contentType.includes("multipart/form-data") || contentType.includes("application/x-www-form-urlencoded")) {
+                const formData = await request.formData();
+                body = Object.fromEntries(formData.entries());
+
+                // Construct nomineeName from flat form data if sent that way
+                body.nomineeName = {
+                    first: body.nomineeFirstName || body["nomineeName.first"] || body["nomineeName[first]"] || "",
+                    middle: body.nomineeMiddleName || body["nomineeName.middle"] || body["nomineeName[middle]"] || "",
+                    last: body.nomineeLastName || body["nomineeName.last"] || body["nomineeName[last]"] || "",
+                };
+
+                // Parse checkbox/string booleans
+                body.agreementAccepted = body.agreementAccepted === "true" || body.agreementAccepted === "on" || body.agreementAccepted === true;
+                body.nomineeAddressSame = body.nomineeAddressSame !== "false" && body.nomineeAddressSame !== false;
+
+            } else {
+                body = await request.json();
+            }
+        } catch (parseError: any) {
+            return corsResponse({ error: "Invalid request format. Expected JSON or Form Data.", details: parseError.message }, 400, origin);
+        }
+
         const {
             email,
             password,
@@ -33,7 +58,7 @@ export async function POST(request: NextRequest) {
             state,
             zipCode,
             poaType,
-            nomineeName,
+            nomineeName = {},
             nomineeRelationship,
             nomineeAddressSame,
             partner,
@@ -117,10 +142,10 @@ export async function POST(request: NextRequest) {
         const nominee = await AccountNominee.findOneAndUpdate(
             { userId },
             {
-                firstName: nomineeName.first,
+                firstName: nomineeName.first || "",
                 middleName: nomineeName.middle || "",
-                lastName: nomineeName.last,
-                relationship: nomineeRelationship,
+                lastName: nomineeName.last || "",
+                relationship: nomineeRelationship || "",
                 sameAddressAsUser: nomineeAddressSame ?? true,
             },
             { upsert: true, new: true }
