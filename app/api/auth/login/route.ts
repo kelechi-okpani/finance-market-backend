@@ -53,6 +53,14 @@ async function handleLogin(request: NextRequest) {
         }
 
         // Verify password
+        if (!user.passwordHash) {
+            return corsResponse(
+                { error: "Please complete your onboarding to set your password." },
+                401,
+                origin
+            );
+        }
+
         const isValid = await verifyPassword(password, user.passwordHash);
         if (!isValid) {
             return corsResponse(

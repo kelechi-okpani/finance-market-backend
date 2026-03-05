@@ -4,6 +4,7 @@ import AccountRequest from "@/lib/models/AccountRequest";
 import User from "@/lib/models/User";
 import { requireAdmin, hashPassword } from "@/lib/auth";
 import { corsResponse, corsOptionsResponse } from "@/lib/cors";
+import { sendKYCLinkEmail } from "@/lib/mail";
 
 // Handle CORS preflight
 export async function OPTIONS(request: NextRequest) {
@@ -53,20 +54,10 @@ export async function PUT(
         }
 
         if (action === "approve") {
-            // Password is required when approving (admin sets it for the user)
-            if (!password || password.length < 8) {
-                return corsResponse(
-                    {
-                        error:
-                            "A password (min 8 characters) is required when approving a user.",
-                    },
-                    400,
-                    origin
-                );
-            }
+            // Password is now optional because users set it during KYC
+            const passwordHash = password ? await hashPassword(password) : undefined;
 
             // Create user account
-            const passwordHash = await hashPassword(password);
             const user = await User.create({
                 firstName: accountRequest.firstName,
                 lastName: accountRequest.lastName,
@@ -74,6 +65,7 @@ export async function PUT(
                 passwordHash,
                 role: "user",
                 status: "approved",
+                accountStatus: "pending", // Initially pending review
             });
 
             // Update request status
@@ -81,9 +73,13 @@ export async function PUT(
             accountRequest.reviewedBy = auth.user!._id;
             await accountRequest.save();
 
+            // Send KYC link email (simulated)
+            await sendKYCLinkEmail(user.email, user.firstName);
+
             return corsResponse(
                 {
-                    message: "Account request approved. User account created.",
+                    message: "Account request approved. User account created and KYC link sent.",
+                    notification: "KYC onboarding link has been sent to the user.",
                     user: {
                         id: user._id,
                         email: user.email,

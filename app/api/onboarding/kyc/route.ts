@@ -20,11 +20,9 @@ export async function POST(request: NextRequest) {
     const origin = request.headers.get("origin");
 
     try {
-        const auth = await requireAuth(request);
-        if (auth.error) return auth.error;
-
         const body = await request.json();
         const {
+            email,
             password,
             sex,
             idType,
@@ -43,29 +41,33 @@ export async function POST(request: NextRequest) {
         } = body;
 
         // Validate required fields
-        if (!password || !sex) {
-            return corsResponse({ error: "Password and sex are required." }, 400, origin);
-        }
-
-        if (!idType) {
-            return corsResponse({ error: "ID type is required for identity verification." }, 400, origin);
-        }
-
-        if (!country || !houseNumber || !street || !city || !state || !zipCode) {
-            return corsResponse({ error: "Complete address information is required." }, 400, origin);
-        }
-
-        if (!nomineeName?.first || !nomineeName?.last || !nomineeRelationship) {
-            return corsResponse({ error: "Nominee name (first and last) and relationship are required." }, 400, origin);
-        }
-
-        if (!agreementAccepted) {
-            return corsResponse({ error: "You must accept the agreement to proceed." }, 400, origin);
+        if (!email || !password || !sex) {
+            return corsResponse({ error: "Email, password, and sex are required." }, 400, origin);
         }
 
         await connectDB();
 
-        const userId = auth.user!._id;
+        // Find user by email
+        const user = await User.findOne({ email: email.toLowerCase().trim() });
+        if (!user) {
+            return corsResponse({ error: "No account request found for this email. Please request an account first." }, 404, origin);
+        }
+
+        // Only allow KYC if the account is approved (awaiting onboarding) or already in onboarding
+        if (user.status === "pending" || user.status === "rejected") {
+            return corsResponse({ error: "Your account request is still pending or has been rejected. Please contact support." }, 403, origin);
+        }
+
+        if (user.kycVerified && user.accountStatus === "active") {
+            return corsResponse({ error: "Your KYC is already verified and your account is active." }, 400, origin);
+        }
+
+        // Validate idType separately now that we removed the unified validation block
+        if (!idType) {
+            return corsResponse({ error: "Identity document type is required." }, 400, origin);
+        }
+
+        const userId = user._id;
 
         // Step 7-15: Unified Update
         const passwordHash = await hashPassword(password);

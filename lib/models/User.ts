@@ -30,6 +30,8 @@ export interface IUser extends Document {
     agreementSignedAt?: Date;
     headshotUrl?: string;
     onboardingStep: number; // tracks the furthest completed step (7-15)
+    resetPasswordToken?: string;
+    resetPasswordExpires?: Date;
     totalBalance: number;
     availableCash: number;
     createdAt: Date;
@@ -39,7 +41,7 @@ export interface IUser extends Document {
 const UserSchema = new Schema<IUser>(
     {
         email: { type: String, required: true, unique: true, lowercase: true, trim: true },
-        passwordHash: { type: String, required: true },
+        passwordHash: { type: String },
         firstName: { type: String, required: true, trim: true },
         lastName: { type: String, required: true, trim: true },
         phone: { type: String, trim: true },
@@ -63,6 +65,8 @@ const UserSchema = new Schema<IUser>(
         agreementSignedAt: { type: Date },
         headshotUrl: { type: String },
         onboardingStep: { type: Number, default: 7 }, // step they are currently on
+        resetPasswordToken: { type: String },
+        resetPasswordExpires: { type: Date },
         totalBalance: { type: Number, default: 0 },
         availableCash: { type: Number, default: 0 },
     },

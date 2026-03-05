@@ -21,13 +21,21 @@ export async function GET(request: NextRequest) {
                     login: "POST /api/auth/login — payload: { email, password }",
                     me: "GET /api/auth/me — returns nested User object",
                     setup: "POST /api/auth/setup (one-time admin creation)",
+                    forgotPassword: "POST /api/auth/forgot-password — payload: { email }",
+                    resetPassword: "POST /api/auth/reset-password — payload: { token, newPassword }",
+                },
+                user: {
+                    data: "GET /api/user/data — returns { Portfolio, Investment, Transaction }",
                 },
                 admin: {
                     dashboard: "GET /api/admin/dashboard",
-                    requests: "GET /api/admin/requests",
-                    reviewRequest: "PUT /api/admin/requests/:id",
+                    requests: "GET /api/admin/requests (List account requests)",
+                    reviewRequest: "PUT /api/admin/requests/:id (Approve/Reject)",
                     users: "GET /api/admin/users",
                     updateUser: "PUT /api/admin/users/:id",
+                    kyc: "GET /api/admin/kyc (List users + their KYC docs)",
+                    market: "GET /api/admin/market/stocks (Manage market data)",
+                    settings: "GET/PUT /api/admin/settings (Site-wide controls)",
                 },
                 onboarding: {
                     kyc: "POST /api/onboarding/kyc — unified KYC onboarding",

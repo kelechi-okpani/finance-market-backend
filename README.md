@@ -140,29 +140,18 @@ Include the token in all subsequent requests:
 
 ### 4. Testing the Onboarding Journey
 
-#### Option A: Unified KYC (Recommended)
-Submit all KYC data in a single request:
+#### Option A: Unified KYC (Recommended) — **Public**
+Submit all KYC data in a single request. (No token required, uses `email` to identify the user).
 ```bash
 curl -X POST https://stockinvest-api.vercel.app/api/onboarding/kyc \
   -H "Content-Type: application/json" \
-  -H "Authorization: Bearer <TOKEN>" \
   -d '{
     "email": "user@example.com",
     "password": "securePass123",
     "sex": "male",
     "idType": "passport",
     "country": "United States",
-    "houseNumber": "123",
-    "street": "Main Street",
-    "city": "New York",
-    "state": "New York",
-    "zipCode": "10001",
-    "poaType": "utility_bill",
-    "nomineeName": { "first": "Jane", "middle": "", "last": "Doe" },
-    "nomineeRelationship": "wife",
-    "nomineeAddressSame": true,
-    "partner": "Vanguard",
-    "agreementAccepted": true
+    ...
   }'
 ```
 
@@ -235,6 +224,19 @@ Frontend should use the following flags to determine the user's journey:
 | POST | `/api/auth/register` | Initial account request (Step 1) | None |
 | POST/GET | `/api/auth/login` | Sign in & get JWT Token | None |
 | GET | `/api/auth/me` | Get full nested user profile | Bearer |
+| POST | `/api/auth/forgot-password` | Request password reset email | None |
+| POST | `/api/auth/reset-password` | Set new password with token | None |
+
+#### 5. User Data (Unified)
+*   **Method:** `GET /api/user/data`
+*   **Auth:** Bearer Token
+*   **Returns:** `{ Portfolio, Investment, Transaction }`
+    *   **Portfolio**: List of user portfolios and their holdings.
+    *   **Investment**: Flat list of all current holdings with live pricing.
+    *   **Transaction**: History of deposits, withdrawals, buys, and sells.
+
+#### 6. Authentication & KYC State Flow
+...
 
 ### 🚀 Onboarding Journey
 
@@ -331,11 +333,19 @@ Returns static data from the `user-data.ts` mock file.
 |--------|----------|-------------|------|
 | GET | `/api/admin/dashboard` | Admin overview stats | Admin |
 | GET | `/api/admin/requests` | List account requests (Step 1) | Admin |
-| PUT | `/api/admin/requests/:id` | Approve/Reject Step 1 request | Admin |
+| PUT | `/api/admin/requests/:id` | Approve/Reject Step 1 request (Triggers KYC Email) | Admin |
 | GET | `/api/admin/users` | Manage all registered users | Admin |
 | GET/PUT/DEL| `/api/admin/users/:id` | Manage specific user | Admin |
+| GET | `/api/admin/kyc` | List all users and their KYC documents | Admin |
+| GET/POST | `/api/admin/market/stocks` | Manage market data (Stock creation/editing) | Admin |
+| GET/PUT | `/api/admin/settings` | Manage site configuration (Maintenance mode, etc) | Admin |
 | POST | `/api/admin/onboarding/approve`| Final approve: Generates **Investor Code**| Admin |
 | POST | `/api/admin/onboarding/reject-document`| Reject specific ID/Address files | Admin |
+
+### 📧 Automated Notifications (Simulated)
+The API includes a simulation layer for email communications (see `lib/mail.ts`). 
+1. **KYC Onboarding Link**: When an admin approves an account request, the user receives an email with a link to `http://localhost:3000/onboarding` (local) or your Production Vercel URL.
+2. **Approval & Investor Code**: Once final KYC is approved, a welcome email is "sent" with the user's unique Investor Code.
 
 ---
 
