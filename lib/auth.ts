@@ -3,6 +3,7 @@ import bcrypt from "bcryptjs";
 import { NextRequest } from "next/server";
 import connectDB from "./db";
 import User, { IUser } from "./models/User";
+import { corsResponse } from "./cors";
 
 const JWT_SECRET = process.env.JWT_SECRET || "fallback-dev-secret";
 const TOKEN_EXPIRY = "7d";
@@ -82,9 +83,10 @@ export async function requireAuth(
 
     if (!user) {
         return {
-            error: new Response(
-                JSON.stringify({ error: "Unauthorized. Please log in." }),
-                { status: 401, headers: { "Content-Type": "application/json" } }
+            error: corsResponse(
+                { error: "Unauthorized. Please log in." },
+                401,
+                request.headers.get("origin")
             ),
         };
     }
@@ -101,12 +103,13 @@ export async function requireApproved(
 
     if (user!.status !== "approved") {
         return {
-            error: new Response(
-                JSON.stringify({
+            error: corsResponse(
+                {
                     error: "Account not approved. Please wait for admin approval.",
                     status: user!.status
-                }),
-                { status: 403, headers: { "Content-Type": "application/json" } }
+                },
+                403,
+                request.headers.get("origin")
             ),
         };
     }
@@ -123,9 +126,10 @@ export async function requireAdmin(
 
     if (user!.role !== "admin") {
         return {
-            error: new Response(
-                JSON.stringify({ error: "Forbidden. Admin access required." }),
-                { status: 403, headers: { "Content-Type": "application/json" } }
+            error: corsResponse(
+                { error: "Forbidden. Admin access required." },
+                403,
+                request.headers.get("origin")
             ),
         };
     }

@@ -7,9 +7,13 @@ const ALLOWED_ORIGINS = [
 ];
 
 export function corsHeaders(origin?: string | null) {
-    const allowedOrigin = origin && ALLOWED_ORIGINS.includes(origin)
-        ? origin
-        : ALLOWED_ORIGINS[0];
+    let allowedOrigin = ALLOWED_ORIGINS[0];
+
+    if (origin) {
+        if (ALLOWED_ORIGINS.includes(origin) || origin.endsWith(".vercel.app")) {
+            allowedOrigin = origin;
+        }
+    }
 
     return {
         "Access-Control-Allow-Origin": allowedOrigin,
