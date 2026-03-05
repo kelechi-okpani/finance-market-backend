@@ -47,7 +47,7 @@ npm run seed
 ```ts
 User {
   id, profile: { firstName, lastName, email, avatar, address, country, phoneNumber },
-  settings: { accountType, kycStatus, riskTolerance, baseCurrency },
+  settings: { accountType, kycStatus, riskTolerance, baseCurrency, isApproved, isKyc, accountStatus },
   portfolios: [{ id, name, holdings: Investment[] }],
   cashMovements: CashMovement[],
   connectedAccounts: ConnectedAccount[],
@@ -211,12 +211,23 @@ Used by developers or admins to instantly create a fully approved user/admin.
 #### 3. Standard Login
 *   **Method:** `POST` or `GET` `/api/auth/login`
 *   **Payload:** `{ email, password }`
-*   **Returns:** JWT Token + enriched user object (id, email, firstName, lastName, role, status, sex, investorCode, accountCategory, accountType, kycStatus, kycVerified, riskTolerance, baseCurrency, agreementSigned, onboardingStep, country, avatar)
+*   **Returns:** JWT Token + enriched user object (id, email, firstName, lastName, role, status, isApproved, isKyc, accountStatus, investorCode, accountCategory, accountType, kycStatus, kycVerified, riskTolerance, baseCurrency, agreementSigned, onboardingStep, country, avatar)
 
 #### 4. Get Current User (Full Nested Profile)
 *   **Method:** `GET /api/auth/me`
 *   **Auth:** Bearer Token
-*   **Returns:** Nested `User` object with `profile`, `settings`, `portfolios` (including `Investment[]`), `cashMovements`, `connectedAccounts`, `stockTransfers`, `totalBalance`, `availableCash`
+*   **Returns:** Nested `User` object with `profile`, `settings` (including `isApproved`, `isKyc`, `accountStatus`), `portfolios`, `cashMovements`, `connectedAccounts`, `stockTransfers`, `totalBalance`, `availableCash`
+
+#### 5. Authentication & KYC State Flow
+Frontend should use the following flags to determine the user's journey:
+*   **`isApproved`**: `true` if the admin has approved the initial account request (Status: `approved` or `onboarding`).
+*   **`isKyc`**: `true` if the user has completed all onboarding/KYC steps (OnboardingStep >= 16).
+*   **`accountStatus`**: `active` (Fully approved), `pending` (Under review), `rejected`, or `suspended`.
+
+**Routing Logic:**
+- If `isApproved` matches `true` AND `isKyc` matches `false` → Route to `/onboarding`.
+- If `isApproved` matches `true` AND `isKyc` matches `true` AND `accountStatus` matches `pending` → Show "Account Under Review".
+- If `accountStatus` matches `active` → Access Dashboard.
 
 | Method | Endpoint | Description | Auth |
 |--------|----------|-------------|------|
