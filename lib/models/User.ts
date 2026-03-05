@@ -18,6 +18,7 @@ export interface IUser extends Document {
     country?: string;
     role: "user" | "admin";
     status: "pending" | "approved" | "rejected" | "onboarding";
+    accountStatus: "active" | "suspended" | "pending" | "rejected";
     accountCategory?: string; // assigned by admin on approval
     accountType?: AccountType;
     investorCode?: string;    // auto-generated 11-char code on approval, e.g. FS928892440
@@ -50,6 +51,7 @@ const UserSchema = new Schema<IUser>(
         country: { type: String, trim: true },
         role: { type: String, enum: ["user", "admin"], default: "user" },
         status: { type: String, enum: ["pending", "approved", "rejected", "onboarding"], default: "pending" },
+        accountStatus: { type: String, enum: ["active", "suspended", "pending", "rejected"], default: "pending" },
         accountCategory: { type: String },
         accountType: { type: String, enum: ["individual", "joint", "corporate", "retirement", "trust"], default: "individual" },
         investorCode: { type: String, unique: true, sparse: true },

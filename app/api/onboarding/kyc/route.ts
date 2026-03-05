@@ -15,18 +15,6 @@ export async function OPTIONS(request: NextRequest) {
 /**
  * POST /api/onboarding/kyc
  * Unified KYC Onboarding — accepts the full KYC form data in one request.
- *
- * Expected payload:
- * {
- *   email, password, sex, idType, country,
- *   houseNumber, street, city, state, zipCode,
- *   poaType,
- *   nomineeName: { first, middle, last },
- *   nomineeRelationship,
- *   nomineeAddressSame,
- *   partner,
- *   agreementAccepted
- * }
  */
 export async function POST(request: NextRequest) {
     const origin = request.headers.get("origin");
@@ -56,50 +44,30 @@ export async function POST(request: NextRequest) {
 
         // Validate required fields
         if (!password || !sex) {
-            return corsResponse(
-                { error: "Password and sex are required." },
-                400,
-                origin
-            );
+            return corsResponse({ error: "Password and sex are required." }, 400, origin);
         }
 
         if (!idType) {
-            return corsResponse(
-                { error: "ID type is required for identity verification." },
-                400,
-                origin
-            );
+            return corsResponse({ error: "ID type is required for identity verification." }, 400, origin);
         }
 
         if (!country || !houseNumber || !street || !city || !state || !zipCode) {
-            return corsResponse(
-                { error: "Complete address information is required." },
-                400,
-                origin
-            );
+            return corsResponse({ error: "Complete address information is required." }, 400, origin);
         }
 
         if (!nomineeName?.first || !nomineeName?.last || !nomineeRelationship) {
-            return corsResponse(
-                { error: "Nominee name (first and last) and relationship are required." },
-                400,
-                origin
-            );
+            return corsResponse({ error: "Nominee name (first and last) and relationship are required." }, 400, origin);
         }
 
         if (!agreementAccepted) {
-            return corsResponse(
-                { error: "You must accept the agreement to proceed." },
-                400,
-                origin
-            );
+            return corsResponse({ error: "You must accept the agreement to proceed." }, 400, origin);
         }
 
         await connectDB();
 
         const userId = auth.user!._id;
 
-        // Step 7: Set password & sex
+        // Step 7-15: Unified Update
         const passwordHash = await hashPassword(password);
         await User.findByIdAndUpdate(userId, {
             passwordHash,
@@ -107,12 +75,14 @@ export async function POST(request: NextRequest) {
             country,
             address: `${houseNumber} ${street}, ${city}, ${state} ${zipCode}`,
             status: "onboarding",
+            accountStatus: "pending",
             kycStatus: "pending",
             agreementSigned: agreementAccepted,
             agreementSignedAt: agreementAccepted ? new Date() : undefined,
+            onboardingStep: 16 // 16 means KYC data submitted
         });
 
-        // Step 8: Store ID document type selection
+        // Step 8: Identity document selection
         await KYCDocument.findOneAndUpdate(
             { userId },
             {
@@ -154,16 +124,13 @@ export async function POST(request: NextRequest) {
             { upsert: true, new: true }
         );
 
-        // Step 11: Fund Distribution Partner
-        // Stored in onboarding progress
-
-        // Update onboarding progress for all completed steps
+        // Update onboarding progress
         await OnboardingProgress.findOneAndUpdate(
             { userId },
             {
-                $addToSet: { completedSteps: { $each: [7, 8, 9, 10, 11, 13] } },
+                $addToSet: { completedSteps: { $each: [7, 8, 9, 10, 11, 13, 14, 15] } },
                 $set: {
-                    currentStep: agreementAccepted ? 14 : 13,
+                    currentStep: 16,
                     "data.password": true,
                     "data.gender": sex,
                     "data.kycDocumentId": idType,
@@ -176,15 +143,10 @@ export async function POST(request: NextRequest) {
             { upsert: true, new: true }
         );
 
-        // Update user's onboarding step
-        await User.findByIdAndUpdate(userId, {
-            onboardingStep: agreementAccepted ? 14 : 13,
-        });
-
         return corsResponse(
             {
                 message: "KYC onboarding completed successfully.",
-                nextStep: agreementAccepted ? 14 : 13,
+                nextStep: 16,
                 kycStatus: "pending",
             },
             200,

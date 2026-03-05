@@ -30,7 +30,6 @@ export async function POST(request: NextRequest) {
         await connectDB();
 
         // 1. Generate 11-digit Investor Code: FS + 9 random digits
-        // Example: FS928892440
         const randomDigits = Math.floor(100000000 + Math.random() * 900000000).toString();
         const investorCode = `FS${randomDigits}`;
 
@@ -39,6 +38,7 @@ export async function POST(request: NextRequest) {
             userId,
             {
                 status: "approved",
+                accountStatus: "active",
                 kycVerified: true,
                 accountCategory: category,
                 investorCode: investorCode
@@ -54,7 +54,7 @@ export async function POST(request: NextRequest) {
             message: "User account approved successfully.",
             investorCode: updatedUser?.investorCode,
             category: updatedUser?.accountCategory,
-            notification: "Welcome email and SMS with Investor Code have been queued." // simulated
+            notification: "Welcome email and SMS with Investor Code have been queued."
         }, 200, origin);
 
     } catch (err: any) {

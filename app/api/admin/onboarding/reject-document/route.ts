@@ -46,7 +46,12 @@ export async function POST(request: NextRequest) {
         }
 
         // Set user status to onboarding so they can re-upload
-        await User.findByIdAndUpdate(userId, { status: "onboarding" });
+        // Also reset kycVerified and update accountStatus as requested
+        await User.findByIdAndUpdate(userId, {
+            status: "onboarding",
+            kycVerified: false,
+            accountStatus: "pending"
+        });
 
         return corsResponse({ message: "Document rejected. User has been notified to re-upload." }, 200, origin);
 
