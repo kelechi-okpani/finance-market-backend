@@ -45,7 +45,7 @@ export async function PUT(
         }
 
         // Update allowed fields
-        if (status && ["pending", "approved", "rejected"].includes(status)) {
+        if (status && ["pending", "approved", "rejected", "onboarding"].includes(status)) {
             user.status = status;
         }
         if (role && ["user", "admin"].includes(role)) {
