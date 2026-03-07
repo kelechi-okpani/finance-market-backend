@@ -12,9 +12,9 @@ export async function OPTIONS(request: NextRequest) {
  * GET /api/admin/market/stocks/[id]
  * Fetch a single stock by ID.
  */
-export async function GET(request: NextRequest, { params }: { params: { id: string } }) {
+export async function GET(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     const origin = request.headers.get("origin");
-    const { id } = params;
+    const { id } = await params;
 
     try {
         const auth = await requireAdmin(request);
@@ -37,9 +37,9 @@ export async function GET(request: NextRequest, { params }: { params: { id: stri
  * PUT /api/admin/market/stocks/[id]
  * Update a stock by ID.
  */
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     const origin = request.headers.get("origin");
-    const { id } = params;
+    const { id } = await params;
 
     try {
         const auth = await requireAdmin(request);
@@ -68,9 +68,9 @@ export async function PUT(request: NextRequest, { params }: { params: { id: stri
  * DELETE /api/admin/market/stocks/[id]
  * Delete a stock by ID.
  */
-export async function DELETE(request: NextRequest, { params }: { params: { id: string } }) {
+export async function DELETE(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     const origin = request.headers.get("origin");
-    const { id } = params;
+    const { id } = await params;
 
     try {
         const auth = await requireAdmin(request);

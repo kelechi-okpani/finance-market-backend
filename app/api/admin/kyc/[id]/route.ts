@@ -14,9 +14,9 @@ export async function OPTIONS(request: NextRequest) {
  * PUT /api/admin/kyc/[id]
  * Unified endpoint to update user kyc settings, approve/reject.
  */
-export async function PUT(request: NextRequest, { params }: { params: { id: string } }) {
+export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     const origin = request.headers.get("origin");
-    const { id: userId } = params;
+    const { id: userId } = await params;
 
     try {
         const auth = await requireAdmin(request);
