@@ -4,21 +4,27 @@ const ALLOWED_ORIGINS = [
     process.env.FRONTEND_URL || "https://stock-portfolio-ruby-five.vercel.app",
     "http://localhost:3000",
     "http://localhost:3001",
+    "http://localhost:5173", // Vite default
+    "http://127.0.0.1:3000",
+    "http://127.0.0.1:3001",
+    "http://127.0.0.1:5173",
 ];
 
 export function corsHeaders(origin?: string | null) {
     let allowedOrigin = ALLOWED_ORIGINS[0];
 
+    // In development or if origin matches allowed list/Vercel, reflect the origin back
     if (origin) {
-        if (ALLOWED_ORIGINS.includes(origin) || origin.endsWith(".vercel.app")) {
+        const isAllowed = ALLOWED_ORIGINS.includes(origin) || origin.endsWith(".vercel.app");
+        if (isAllowed || process.env.NODE_ENV === "development") {
             allowedOrigin = origin;
         }
     }
 
     return {
         "Access-Control-Allow-Origin": allowedOrigin,
-        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type, Authorization",
+        "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
         "Access-Control-Allow-Credentials": "true",
         "Access-Control-Max-Age": "86400",
     };
