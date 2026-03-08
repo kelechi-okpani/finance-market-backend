@@ -49,13 +49,13 @@ export async function GET(request: NextRequest) {
 
         // Fetch transactions for each user
         const userIds = users.map(u => u._id);
-        const allTransactions = await mongoose.model("CashMovement").find({
+        const allTransactions = await CashMovement.find({
             userId: { $in: userIds }
         }).sort({ createdAt: -1 }).lean();
 
         const usersWithData = users.map(user => ({
             ...user,
-            transactions: allTransactions.filter(t => t.userId.toString() === user._id.toString())
+            transactions: (allTransactions as any[]).filter(t => t.userId.toString() === user._id.toString())
         }));
 
         return corsResponse(
