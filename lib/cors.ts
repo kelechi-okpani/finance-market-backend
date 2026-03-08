@@ -13,18 +13,24 @@ const ALLOWED_ORIGINS = [
 export function corsHeaders(origin?: string | null) {
     let allowedOrigin = ALLOWED_ORIGINS[0];
 
-    // In development or if origin matches allowed list/Vercel, reflect the origin back
     if (origin) {
-        const isAllowed = ALLOWED_ORIGINS.includes(origin) || origin.endsWith(".vercel.app");
+        const isAllowed = ALLOWED_ORIGINS.includes(origin) ||
+            origin.endsWith(".vercel.app") ||
+            origin.startsWith("http://localhost:") ||
+            origin.startsWith("http://127.0.0.1:");
+
         if (isAllowed || process.env.NODE_ENV === "development") {
             allowedOrigin = origin;
         }
     }
 
+    // If still undefined/fallback, and we're in dev, just use wildcard (though credentials: true requires specific origin)
+    // browser will block if we use '*' with credentials.
+
     return {
-        "Access-Control-Allow-Origin": allowedOrigin,
+        "Access-Control-Allow-Origin": allowedOrigin || "*",
         "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With, Cache-Control",
         "Access-Control-Allow-Credentials": "true",
         "Access-Control-Max-Age": "86400",
     };
