@@ -23,6 +23,13 @@ export async function GET(request: NextRequest) {
 
         // Build dynamic MongoDB filter
         const filter: Record<string, any> = {};
+
+        // Public API should generally only show published stocks
+        const showAll = searchParams.get("showAll") === "true"; // maybe for dev?
+        if (!showAll) {
+            filter.isPublished = true;
+        }
+
         if (sector) filter.sector = { $regex: sector, $options: "i" };
         if (market) filter.market = { $regex: market, $options: "i" };
         if (trend) filter.marketTrend = trend;

@@ -1,6 +1,6 @@
 import mongoose, { Schema, Document, Model } from "mongoose";
 
-export type AccountType = "individual" | "joint" | "corporate" | "retirement" | "trust";
+export type AccountType = "individual" | "joint" | "corporate" | "retirement" | "trust" | "personal";
 export type KYCStatus = "not_started" | "pending" | "verified" | "rejected";
 
 export interface IUser extends Document {
@@ -55,7 +55,7 @@ const UserSchema = new Schema<IUser>(
         status: { type: String, enum: ["pending", "approved", "rejected", "onboarding"], default: "pending" },
         accountStatus: { type: String, enum: ["active", "suspended", "pending", "rejected"], default: "pending" },
         accountCategory: { type: String },
-        accountType: { type: String, enum: ["individual", "joint", "corporate", "retirement", "trust"], default: "individual" },
+        accountType: { type: String, enum: ["individual", "joint", "corporate", "retirement", "trust", "personal"], default: "individual" },
         investorCode: { type: String, unique: true, sparse: true },
         kycStatus: { type: String, enum: ["not_started", "pending", "verified", "rejected"], default: "not_started" },
         kycVerified: { type: Boolean, default: false },

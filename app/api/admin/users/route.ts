@@ -1,6 +1,8 @@
 import { NextRequest } from "next/server";
 import connectDB from "@/lib/db";
 import User from "@/lib/models/User";
+import CashMovement from "@/lib/models/CashMovement";
+import mongoose from "mongoose";
 import { requireAdmin } from "@/lib/auth";
 import { corsResponse, corsOptionsResponse } from "@/lib/cors";
 
@@ -40,13 +42,25 @@ export async function GET(request: NextRequest) {
                 .sort({ createdAt: -1 })
                 .skip(skip)
                 .limit(limit)
-                .select("-passwordHash"),
+                .select("-passwordHash")
+                .lean(),
             User.countDocuments(filter),
         ]);
 
+        // Fetch transactions for each user
+        const userIds = users.map(u => u._id);
+        const allTransactions = await mongoose.model("CashMovement").find({
+            userId: { $in: userIds }
+        }).sort({ createdAt: -1 }).lean();
+
+        const usersWithData = users.map(user => ({
+            ...user,
+            transactions: allTransactions.filter(t => t.userId.toString() === user._id.toString())
+        }));
+
         return corsResponse(
             {
-                users,
+                users: usersWithData,
                 pagination: {
                     page,
                     limit,

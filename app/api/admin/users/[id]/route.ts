@@ -122,3 +122,50 @@ export async function DELETE(
         return corsResponse({ error: "Internal server error." }, 500, origin);
     }
 }
+
+/**
+ * PATCH /api/admin/users/[id]
+ * Partial update for admin actions like suspension.
+ */
+export async function PATCH(
+    request: NextRequest,
+    { params }: { params: Promise<{ id: string }> }
+) {
+    const origin = request.headers.get("origin");
+
+    const auth = await requireAdmin(request);
+    if (auth.error) return auth.error;
+
+    try {
+        const { id } = await params;
+        const body = await request.json();
+        const { accountStatus, status } = body;
+
+        await connectDB();
+
+        const user = await User.findById(id);
+        if (!user) {
+            return corsResponse({ error: "User not found." }, 404, origin);
+        }
+
+        // Apply partial updates
+        if (accountStatus && ["active", "suspended", "pending", "rejected"].includes(accountStatus)) {
+            user.accountStatus = accountStatus;
+        }
+
+        if (status && ["pending", "approved", "rejected", "onboarding"].includes(status)) {
+            user.status = status;
+        }
+
+        await user.save();
+
+        return corsResponse(
+            { message: `User account status updated to ${user.accountStatus}.`, user },
+            200,
+            origin
+        );
+    } catch (error: any) {
+        console.error("Admin PATCH user error:", error);
+        return corsResponse({ error: "Failed to update user.", details: error.message }, 500, origin);
+    }
+}

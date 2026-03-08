@@ -3,6 +3,8 @@
  * Populates MongoDB with:
  * 1. Market Data (Stocks, Bonds, ETFs, etc.)
  * 2. Mock Users and their associated data (Portfolios, Holdings, Transactions, etc.)
+ * 3. KYC and Address Verification documents
+ * 4. Admin Settings (Countries/Regions)
  * 
  * Run: npx tsx scripts/seed.ts
  */
@@ -24,7 +26,7 @@ if (!MONGODB_URI) {
 
 // ─── MODELS ──────────────────────────────────────────────────────────────────
 
-// We define minimal models here to avoid dependency issues during seeding
+// Stock
 const StockSchema = new mongoose.Schema({
     symbol: { type: String, required: true, unique: true },
     name: String, market: String, price: Number, change: Number,
@@ -33,6 +35,7 @@ const StockSchema = new mongoose.Schema({
     isPublished: { type: Boolean, default: false },
 }, { timestamps: true });
 
+// User
 const UserSchema = new mongoose.Schema({
     email: { type: String, required: true, unique: true },
     passwordHash: String,
@@ -102,10 +105,39 @@ const StockTransferSchema = new mongoose.Schema({
     type: String,
 }, { timestamps: true });
 
-const BondSchema = new mongoose.Schema({ symbol: { type: String, unique: true }, issuer: String, type: String, couponRate: Number, yieldToMaturity: Number, maturityDate: String, creditRating: String, price: Number, par: Number, duration: Number, change: Number, changePercent: Number, market: String });
-const ETFSchema = new mongoose.Schema({ symbol: { type: String, unique: true }, name: String, indexName: String, expenseRatio: Number, nav: Number, price: Number, change: Number, changePercent: Number, aum: String, volume: String, yield: Number, isIndexBased: Boolean, isActivelyManaged: Boolean, market: String, holdings: Array });
-const MutualFundSchema = new mongoose.Schema({ symbol: { type: String, unique: true }, name: String, fundFamily: String, fundType: String, expenseRatio: Number, nav: Number, price: Number, change: Number, changePercent: Number, minimumInvestment: Number, aum: String, yield: Number, managerName: String, managerTenure: Number, performance1Y: Number, performance3Y: Number, performance5Y: Number, market: String, holdings: Array });
-const CommoditySchema = new mongoose.Schema({ symbol: { type: String, unique: true }, name: String, type: String, investmentType: String, spotPrice: Number, change: Number, changePercent: Number, volume: String, currency: String, marketTrend: String });
+// KYC Document
+const KYCDocumentSchema = new mongoose.Schema({
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+    documentType: { type: String, enum: ["passport", "drivers_license", "national_id", "voters_id"] },
+    frontPageUrl: String,
+    backPageUrl: String,
+    status: { type: String, default: "pending" },
+}, { timestamps: true });
+
+// Address Verification
+const AddressVerificationSchema = new mongoose.Schema({
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: "User", required: true },
+    houseNumber: String,
+    streetAddress: String,
+    city: String,
+    stateProvince: String,
+    zipCode: String,
+    country: String,
+    poaDocumentType: String,
+    poaDocumentUrl: String,
+    status: { type: String, default: "pending" },
+}, { timestamps: true });
+
+// Admin Settings
+const AdminSettingsSchema = new mongoose.Schema({
+    allowedCountries: [String],
+    allowedRegions: [String],
+}, { timestamps: true });
+
+// Account Request
+const AccountRequestSchema = new mongoose.Schema({
+    firstName: String, lastName: String, email: String, phone: String, message: String, status: { type: String, default: 'pending' }
+}, { timestamps: true });
 
 const Stock = mongoose.models.Stock || mongoose.model("Stock", StockSchema);
 const User = mongoose.models.User || mongoose.model("User", UserSchema);
@@ -114,14 +146,13 @@ const Holding = mongoose.models.Holding || mongoose.model("Holding", HoldingSche
 const CashMovement = mongoose.models.CashMovement || mongoose.model("CashMovement", CashMovementSchema);
 const ConnectedAccount = mongoose.models.ConnectedAccount || mongoose.model("ConnectedAccount", ConnectedAccountSchema);
 const StockTransfer = mongoose.models.StockTransfer || mongoose.model("StockTransfer", StockTransferSchema);
-const Bond = mongoose.models.Bond || mongoose.model("Bond", BondSchema);
-const ETF = mongoose.models.ETF || mongoose.model("ETF", ETFSchema);
-const MutualFund = mongoose.models.MutualFund || mongoose.model("MutualFund", MutualFundSchema);
-const Commodity = mongoose.models.Commodity || mongoose.model("Commodity", CommoditySchema);
+const KYCDocument = mongoose.models.KYCDocument || mongoose.model("KYCDocument", KYCDocumentSchema);
+const AddressVerification = mongoose.models.AddressVerification || mongoose.model("AddressVerification", AddressVerificationSchema);
+const AdminSettings = mongoose.models.AdminSettings || mongoose.model("AdminSettings", AdminSettingsSchema);
+const AccountRequest = mongoose.models.AccountRequest || mongoose.model("AccountRequest", AccountRequestSchema);
 
 // ─── DATA ────────────────────────────────────────────────────────────────────
 
-// (Market data from market-data.ts)
 const marketStocks = [
     { symbol: "AAPL", name: "Apple Inc.", price: 182.52, change: 1.20, changePercent: 0.66, volume: "52M", marketCap: "2.82T", sector: "Technology", market: "NASDAQ", isPublished: true },
     { symbol: "MSFT", name: "Microsoft Corp.", price: 405.32, change: -2.15, changePercent: -0.53, volume: "22M", marketCap: "3.01T", sector: "Technology", market: "NASDAQ", isPublished: true },
@@ -132,7 +163,6 @@ const marketStocks = [
     { symbol: "BTC", name: "Bitcoin", price: 90681.00, change: 1240.0, changePercent: 1.38, volume: "28B", marketCap: "1.7T", sector: "Crypto", market: "Binance", isPublished: true }
 ];
 
-// (User data from user-data.ts)
 const mockUsers = [
     {
         profile: {
@@ -164,7 +194,8 @@ const mockUsers = [
         cashMovements: [
             { type: "deposit", amount: 25000.0, currency: "EUR", method: "SEPA Transfer", status: "completed", date: "2024-02-15T10:30:00Z" },
             { type: "withdrawal", amount: 5000.0, currency: "EUR", method: "Bank Account (...4492)", status: "completed", date: "2024-02-18T14:20:00Z" },
-            { type: "deposit", amount: 1200.0, currency: "EUR", method: "Visa Card", status: "pending", date: "2024-02-22T09:00:00Z" },
+            { type: "deposit", amount: 1200.0, currency: "EUR", method: "Visa Card", status: "pending", date: "2024-03-01T09:00:00Z" },
+            { type: "withdrawal", amount: 300.0, currency: "EUR", method: "PayPal", status: "pending", date: "2024-03-05T12:00:00Z" },
         ],
         connectedAccounts: [
             { provider: "Deutsche Bank", accountName: "Primary Checking", lastFour: "8821", balance: 14200.5 },
@@ -174,6 +205,23 @@ const mockUsers = [
             { assetSymbol: "NVDA", assetName: "NVIDIA Corp.", shares: 5, valueAtTransfer: 3630.65, fromUser: "Julian Bernhardt", toUser: "Internal Liquidity Pool", date: "2024-02-21T09:00:00Z", status: "completed", type: "outbound" },
             { assetSymbol: "BTC", assetName: "Bitcoin", shares: 0.1, valueAtTransfer: 9068.10, fromUser: "External Wallet (0x...f3)", toUser: "Julian Bernhardt", date: "2024-02-19T16:45:00Z", status: "completed", type: "inbound" }
         ],
+        kyc: {
+            documentType: "passport",
+            frontPageUrl: "https://placehold.co/600x400?text=Passport+Front",
+            backPageUrl: "https://placehold.co/600x400?text=Passport+Back",
+            status: "pending"
+        },
+        addressVerification: {
+            houseNumber: "12",
+            streetAddress: "Börsenstraße",
+            city: "Frankfurt",
+            stateProvince: "Hesse",
+            zipCode: "60313",
+            country: "Germany",
+            poaDocumentType: "utility_bill",
+            poaDocumentUrl: "https://placehold.co/600x400?text=Utility+Bill",
+            status: "pending"
+        }
     },
     {
         profile: {
@@ -204,7 +252,7 @@ const mockUsers = [
 // ─── MAIN ────────────────────────────────────────────────────────────────────
 
 async function seed() {
-    console.log("🌱 Starting seed...");
+    console.log("🌱 Starting comprehensive seed...");
 
     await mongoose.connect(MONGODB_URI as string);
     console.log("✅ Connected to MongoDB.");
@@ -214,9 +262,17 @@ async function seed() {
     for (const s of marketStocks) {
         await Stock.findOneAndUpdate({ symbol: s.symbol }, s, { upsert: true });
     }
-    console.log("   ✅ Stocks seeded.");
 
-    // 2. Seed Users and related data
+    // 2. Admin Settings
+    console.log("⚙️  Seeding Admin Settings...");
+    await AdminSettings.findOneAndUpdate({}, {
+        $set: {
+            allowedCountries: ["United States", "United Kingdom", "Germany", "Nigeria", "Canada"],
+            allowedRegions: ["North America", "Europe", "Africa"]
+        }
+    }, { upsert: true });
+
+    // 3. Seed Users and related data
     console.log("👤 Seeding Users...");
     const passwordHash = await bcrypt.hash("Password123!", 10);
 
@@ -249,20 +305,17 @@ async function seed() {
 
         console.log(`   - Seeded user: ${user.email}`);
 
-        // Clear existing related data to avoid duplicates if re-running
+        // Clear and Seed related data
         await Portfolio.deleteMany({ userId: user._id });
         await CashMovement.deleteMany({ userId: user._id });
         await ConnectedAccount.deleteMany({ userId: user._id });
         await StockTransfer.deleteMany({ userId: user._id });
+        await KYCDocument.deleteMany({ userId: user._id });
+        await AddressVerification.deleteMany({ userId: user._id });
 
-        // Seed Portfolios and Holdings
+        // Seed Portfolios
         for (const pData of userData.portfolios) {
-            const portfolio = await Portfolio.create({
-                userId: user._id,
-                name: pData.name,
-                type: 'stocks'
-            });
-
+            const portfolio = await Portfolio.create({ userId: user._id, name: pData.name, type: 'stocks' });
             for (const hData of pData.holdings) {
                 await Holding.create({
                     portfolioId: portfolio._id,
@@ -271,7 +324,6 @@ async function seed() {
                     companyName: hData.name,
                     shares: hData.shares,
                     avgBuyPrice: hData.avgPrice,
-                    boughtAt: new Date()
                 });
             }
         }
@@ -290,9 +342,25 @@ async function seed() {
         for (const st of userData.stockTransfers) {
             await StockTransfer.create({ ...st, userId: user._id });
         }
+
+        // Seed Documents if any
+        if (userData.kyc) {
+            await KYCDocument.create({ ...userData.kyc, userId: user._id });
+        }
+        if (userData.addressVerification) {
+            await AddressVerification.create({ ...userData.addressVerification, userId: user._id });
+        }
     }
 
-    console.log("\n🎉 Database seeded successfully!");
+    // 4. Seed some pending Account Requests
+    console.log("📨 Seeding Account Requests...");
+    await AccountRequest.deleteMany({});
+    await AccountRequest.create([
+        { firstName: "Elena", lastName: "Gilbert", email: "elena@mystic.com", phone: "+1 234 567 890", message: "Interested in high-growth portfolios.", status: "pending" },
+        { firstName: "Damon", lastName: "Salvatore", email: "damon@mystic.com", phone: "+1 987 654 321", message: "Crypto specialist.", status: "pending" }
+    ]);
+
+    console.log("\n🎉 Database comprehensive seed successful!");
     await mongoose.disconnect();
 }
 
