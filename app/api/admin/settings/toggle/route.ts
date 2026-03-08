@@ -29,7 +29,12 @@ export async function PATCH(request: NextRequest) {
         await connectDB();
 
         let settings = await AdminSettings.findOne();
-        if (!settings) settings = await AdminSettings.create({});
+        if (!settings) {
+            settings = await AdminSettings.create({
+                allowedCountries: [],
+                allowedRegions: []
+            });
+        }
 
         if (type === 'country') {
             if (enabled) {
@@ -37,7 +42,9 @@ export async function PATCH(request: NextRequest) {
                     settings.allowedCountries.push(value);
                 }
             } else {
-                settings.allowedCountries = settings.allowedCountries.filter(c => c !== value);
+                // Use a temporary array to satisfy TS and Mongoose
+                const updated = (settings.allowedCountries as string[]).filter(c => c !== value);
+                settings.allowedCountries = updated;
             }
         } else if (type === 'region') {
             if (enabled) {
@@ -45,7 +52,8 @@ export async function PATCH(request: NextRequest) {
                     settings.allowedRegions.push(value);
                 }
             } else {
-                settings.allowedRegions = settings.allowedRegions.filter(r => r !== value);
+                const updated = (settings.allowedRegions as string[]).filter(r => r !== value);
+                settings.allowedRegions = updated;
             }
         } else {
             return corsResponse({ error: "Invalid type. Must be 'country' or 'region'." }, 400, origin);
