@@ -30,6 +30,7 @@ const StockSchema = new mongoose.Schema({
     name: String, market: String, price: Number, change: Number,
     changePercent: Number, volume: String, marketCap: String,
     sector: String, marketTrend: String,
+    isPublished: { type: Boolean, default: false },
 }, { timestamps: true });
 
 const UserSchema = new mongoose.Schema({
@@ -122,13 +123,13 @@ const Commodity = mongoose.models.Commodity || mongoose.model("Commodity", Commo
 
 // (Market data from market-data.ts)
 const marketStocks = [
-    { symbol: "AAPL", name: "Apple Inc.", price: 182.52, change: 1.20, changePercent: 0.66, volume: "52M", marketCap: "2.82T", sector: "Technology", market: "NASDAQ" },
-    { symbol: "MSFT", name: "Microsoft Corp.", price: 405.32, change: -2.15, changePercent: -0.53, volume: "22M", marketCap: "3.01T", sector: "Technology", market: "NASDAQ" },
-    { symbol: "GOOGL", name: "Alphabet Inc.", price: 145.12, change: 0.85, changePercent: 0.59, volume: "28M", marketCap: "1.81T", sector: "Communication Services", market: "NASDAQ" },
-    { symbol: "AMZN", name: "Amazon.com Inc.", price: 175.05, change: 3.40, changePercent: 1.98, volume: "35M", marketCap: "1.81T", sector: "Consumer Cyclical", market: "NASDAQ" },
-    { symbol: "NVDA", name: "NVIDIA Corp.", price: 726.13, change: 15.20, changePercent: 2.14, volume: "44M", marketCap: "1.79T", sector: "Technology", market: "NASDAQ" },
-    { symbol: "TSLA", name: "Tesla, Inc.", price: 195.40, change: -4.20, changePercent: -2.10, volume: "95M", marketCap: "620B", sector: "Consumer Cyclical", market: "NASDAQ" },
-    { symbol: "BTC", name: "Bitcoin", price: 90681.00, change: 1240.0, changePercent: 1.38, volume: "28B", marketCap: "1.7T", sector: "Crypto", market: "Binance" }
+    { symbol: "AAPL", name: "Apple Inc.", price: 182.52, change: 1.20, changePercent: 0.66, volume: "52M", marketCap: "2.82T", sector: "Technology", market: "NASDAQ", isPublished: true },
+    { symbol: "MSFT", name: "Microsoft Corp.", price: 405.32, change: -2.15, changePercent: -0.53, volume: "22M", marketCap: "3.01T", sector: "Technology", market: "NASDAQ", isPublished: true },
+    { symbol: "GOOGL", name: "Alphabet Inc.", price: 145.12, change: 0.85, changePercent: 0.59, volume: "28M", marketCap: "1.81T", sector: "Communication Services", market: "NASDAQ", isPublished: false },
+    { symbol: "AMZN", name: "Amazon.com Inc.", price: 175.05, change: 3.40, changePercent: 1.98, volume: "35M", marketCap: "1.81T", sector: "Consumer Cyclical", market: "NASDAQ", isPublished: true },
+    { symbol: "NVDA", name: "NVIDIA Corp.", price: 726.13, change: 15.20, changePercent: 2.14, volume: "44M", marketCap: "1.79T", sector: "Technology", market: "NASDAQ", isPublished: true },
+    { symbol: "TSLA", name: "Tesla, Inc.", price: 195.40, change: -4.20, changePercent: -2.10, volume: "95M", marketCap: "620B", sector: "Consumer Cyclical", market: "NASDAQ", isPublished: false },
+    { symbol: "BTC", name: "Bitcoin", price: 90681.00, change: 1240.0, changePercent: 1.38, volume: "28B", marketCap: "1.7T", sector: "Crypto", market: "Binance", isPublished: true }
 ];
 
 // (User data from user-data.ts)

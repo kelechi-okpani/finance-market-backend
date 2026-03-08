@@ -64,7 +64,7 @@ export async function POST(request: NextRequest) {
         if (auth.error) return auth.error;
 
         const body = await request.json();
-        const { symbol, name, price, sector, market } = body;
+        const { symbol, name, price, sector, market, isPublished } = body;
 
         if (!symbol || !name || !price) {
             return corsResponse({ error: "Symbol, name, and price are required." }, 400, origin);
@@ -72,17 +72,21 @@ export async function POST(request: NextRequest) {
 
         await connectDB();
 
+        const update: any = {
+            name,
+            price,
+            sector,
+            market,
+            lastUpdated: new Date()
+        };
+
+        if (typeof isPublished === "boolean") {
+            update.isPublished = isPublished;
+        }
+
         const stock = await Stock.findOneAndUpdate(
             { symbol: symbol.toUpperCase() },
-            {
-                $set: {
-                    name,
-                    price,
-                    sector,
-                    market,
-                    lastUpdated: new Date()
-                }
-            },
+            { $set: update },
             { upsert: true, new: true }
         );
 

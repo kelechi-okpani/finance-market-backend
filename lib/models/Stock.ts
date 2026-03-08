@@ -14,6 +14,7 @@ export interface IStock extends Document {
     dividend?: number;
     marketTrend?: "bullish" | "bearish" | "neutral";
     description?: string;
+    isPublished: boolean;
 }
 
 const StockSchema = new Schema<IStock>({
@@ -30,6 +31,7 @@ const StockSchema = new Schema<IStock>({
     dividend: { type: Number },
     marketTrend: { type: String, enum: ["bullish", "bearish", "neutral"], default: "neutral" },
     description: { type: String },
+    isPublished: { type: Boolean, default: false },
 }, { timestamps: true });
 
 const Stock: Model<IStock> = mongoose.models.Stock || mongoose.model<IStock>("Stock", StockSchema);
