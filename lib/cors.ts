@@ -4,7 +4,7 @@ const ALLOWED_ORIGINS = [
     process.env.FRONTEND_URL || "https://stock-portfolio-ruby-five.vercel.app",
     "http://localhost:3000",
     "http://localhost:3001",
-    "http://localhost:5173", // Vite default
+    "http://localhost:5173",
     "http://127.0.0.1:3000",
     "http://127.0.0.1:3001",
     "http://127.0.0.1:5173",
@@ -17,18 +17,16 @@ export function corsHeaders(origin?: string | null) {
         const isAllowed = ALLOWED_ORIGINS.includes(origin) ||
             origin.endsWith(".vercel.app") ||
             origin.startsWith("http://localhost:") ||
-            origin.startsWith("http://127.0.0.1:");
+            origin.startsWith("http://127.0.0.1:") ||
+            process.env.NODE_ENV === "development";
 
-        if (isAllowed || process.env.NODE_ENV === "development") {
+        if (isAllowed) {
             allowedOrigin = origin;
         }
     }
 
-    // If still undefined/fallback, and we're in dev, just use wildcard (though credentials: true requires specific origin)
-    // browser will block if we use '*' with credentials.
-
     return {
-        "Access-Control-Allow-Origin": allowedOrigin,
+        "Access-Control-Allow-Origin": allowedOrigin || "*",
         "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
         "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With, Cache-Control",
         "Access-Control-Allow-Credentials": "true",
