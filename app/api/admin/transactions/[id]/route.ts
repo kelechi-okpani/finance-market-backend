@@ -56,9 +56,26 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
             }
         }
 
+        // Refund if failed or cancelled
+        if (status === "failed" || status === "cancelled") {
+            const user = await User.findById(transaction.userId);
+            if (user) {
+                if (transaction.type === "withdrawal") {
+                    user.totalBalance += transaction.amount;
+                    user.availableCash += transaction.amount;
+
+                    if (status === "failed") {
+                        user.failedWithdrawalAttempts += 1;
+                        if (user.failedWithdrawalAttempts >= 3) {
+                            user.requiresResettlementAccount = true;
+                        }
+                    }
+                }
+                await user.save();
+            }
+        }
+
         transaction.status = status;
-        // Optionally store remarks in a new field if added to model, 
-        // but for now just update status.
         await transaction.save();
 
         return corsResponse({ message: `Transaction ${status} successfully.`, transaction }, 200, origin);

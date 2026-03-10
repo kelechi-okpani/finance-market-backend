@@ -6,6 +6,11 @@ export interface IPortfolioTransfer extends Document {
     senderId: mongoose.Types.ObjectId;
     recipientId?: mongoose.Types.ObjectId;
     recipientEmail: string;
+    firstName?: string;
+    lastName?: string;
+    address?: string;
+    phone?: string;
+    description?: string;
     status: 'pending' | 'accepted' | 'rejected';
     createdAt: Date;
     resolvedAt?: Date;
@@ -33,6 +38,11 @@ const PortfolioTransferSchema = new Schema<IPortfolioTransfer>(
             lowercase: true,
             trim: true,
         },
+        firstName: { type: String, trim: true },
+        lastName: { type: String, trim: true },
+        address: { type: String, trim: true },
+        phone: { type: String, trim: true },
+        description: { type: String, trim: true },
         status: {
             type: String,
             enum: ['pending', 'accepted', 'rejected'],

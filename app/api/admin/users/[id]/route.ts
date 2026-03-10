@@ -46,7 +46,23 @@ export async function PUT(
 
         // Update allowed fields
         if (status && ["pending", "approved", "rejected", "onboarding"].includes(status)) {
+            const oldStatus = user.status;
             user.status = status;
+
+            // If newly approved, create Main Portfolio
+            if (status === "approved" && oldStatus !== "approved") {
+                const Portfolio = (await import("@/lib/models/Portfolio")).default;
+                const existingMain = await Portfolio.findOne({ userId: user._id, name: "Main Portfolio" });
+                if (!existingMain) {
+                    await Portfolio.create({
+                        userId: user._id,
+                        name: "Main Portfolio",
+                        type: "stocks",
+                        status: "active",
+                        source: "created"
+                    });
+                }
+            }
         }
         if (role && ["user", "admin"].includes(role)) {
             user.role = role;
@@ -154,7 +170,23 @@ export async function PATCH(
         }
 
         if (status && ["pending", "approved", "rejected", "onboarding"].includes(status)) {
+            const oldStatus = user.status;
             user.status = status;
+
+            // If newly approved, create Main Portfolio
+            if (status === "approved" && oldStatus !== "approved") {
+                const Portfolio = (await import("@/lib/models/Portfolio")).default;
+                const existingMain = await Portfolio.findOne({ userId: user._id, name: "Main Portfolio" });
+                if (!existingMain) {
+                    await Portfolio.create({
+                        userId: user._id,
+                        name: "Main Portfolio",
+                        type: "stocks",
+                        status: "active",
+                        source: "created"
+                    });
+                }
+            }
         }
 
         await user.save();

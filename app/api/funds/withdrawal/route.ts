@@ -18,21 +18,26 @@ export async function POST(request: NextRequest) {
 
     try {
         const body = await request.json();
-        const { amount, method, currency = "USD", description } = body;
+        const { amount, method, currency = "USD", description, bankDetails, resettlementAccountId } = body;
 
         if (!amount || amount <= 0) {
             return corsResponse({ error: "Valid amount is required." }, 400, origin);
         }
 
-        if (!method) {
-            return corsResponse({ error: "Withdrawal method is required." }, 400, origin);
-        }
-
         await connectDB();
 
-        // Check balance
+        // Check user state
         const user = await User.findById(auth.user!._id);
-        if (!user || user.availableCash < amount) {
+        if (!user) return corsResponse({ error: "User not found." }, 404, origin);
+
+        if (user.requiresResettlementAccount && !resettlementAccountId) {
+            return corsResponse({
+                error: "Your account requires a Resettlement Account for withdrawals due to previous failures. Please request one.",
+                requiresResettlement: true
+            }, 403, origin);
+        }
+
+        if (user.availableCash < amount) {
             return corsResponse({ error: "Insufficient available cash for withdrawal." }, 400, origin);
         }
 
@@ -41,27 +46,30 @@ export async function POST(request: NextRequest) {
             userId: auth.user!._id,
             type: 'withdrawal',
             amount,
-            description: description || `Withdrawal via ${method}`,
+            description: description || `Withdrawal via ${method || (resettlementAccountId ? 'Resettlement Account' : 'Bank Transfer')}`,
         });
 
         // 2. Create CashMovement (for history/status tracking)
+        // Store bank details in description or metadata if model allows, for now using description
+        let withdrawalNote = description || "";
+        if (bankDetails) {
+            withdrawalNote += ` [Bank: ${bankDetails.bankName}, Acc: ${bankDetails.accountNumber}]`;
+        }
+
         await CashMovement.create({
             userId: auth.user!._id,
             type: "withdrawal",
             amount,
             currency,
-            method,
-            status: "pending", // Withdrawals usually require approval
+            method: method || (resettlementAccountId ? "resettlement" : "bank_transfer"),
+            status: "pending",
             date: new Date().toISOString().split('T')[0],
         });
 
-        // 3. Update User Balance (Deduct from available cash immediately)
-        await User.findByIdAndUpdate(auth.user!._id, {
-            $inc: {
-                totalBalance: -amount,
-                availableCash: -amount
-            }
-        });
+        // 3. Update User Balance
+        user.totalBalance -= amount;
+        user.availableCash -= amount;
+        await user.save();
 
         return corsResponse({
             message: "Withdrawal request submitted successfully.",

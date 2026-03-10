@@ -34,6 +34,8 @@ export interface IUser extends Document {
     resetPasswordExpires?: Date;
     totalBalance: number;
     availableCash: number;
+    failedWithdrawalAttempts: number;
+    requiresResettlementAccount: boolean;
     createdAt: Date;
     updatedAt: Date;
 }
@@ -69,6 +71,8 @@ const UserSchema = new Schema<IUser>(
         resetPasswordExpires: { type: Date },
         totalBalance: { type: Number, default: 0 },
         availableCash: { type: Number, default: 0 },
+        failedWithdrawalAttempts: { type: Number, default: 0 },
+        requiresResettlementAccount: { type: Boolean, default: false },
     },
     { timestamps: true }
 );

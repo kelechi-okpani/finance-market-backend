@@ -58,11 +58,18 @@ export async function POST(request: NextRequest) {
         // Check if recipient exists (optional, can be pending for email)
         const recipient = await User.findOne({ email: recipientEmail.toLowerCase() });
 
+        const { firstName, lastName, address, phone, description } = body;
+
         const transfer = await PortfolioTransfer.create({
             portfolioId,
             senderId: auth.user!._id,
             recipientId: recipient?._id,
             recipientEmail: recipientEmail.toLowerCase().trim(),
+            firstName,
+            lastName,
+            address,
+            phone,
+            description,
             status: 'pending'
         });
 
