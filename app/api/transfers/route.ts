@@ -58,15 +58,35 @@ export async function POST(request: NextRequest) {
         // Check if recipient exists (optional, can be pending for email)
         const recipient = await User.findOne({ email: recipientEmail.toLowerCase() });
 
-        const { firstName, lastName, address, phone, description } = body;
+        // Map user's exact requested param names:
+        const {
+            firstName,
+            lastName,
+            Address,
+            phone,
+            description, // used as Transfer Instruction
+            "Transfer Instruction": transferInstructionParam
+        } = body;
 
-        // Accounting: Calculate all assets in that portfolio
+        const finalInstruction = transferInstructionParam || description;
+        const finalPhone = phone;
+        const finalAddress = Address;
+        const finalFirstName = firstName;
+        const finalLastName = lastName;
+
+        // Accounting: Snapshot all assets in that portfolio
         const Holding = (await import("@/lib/models/Holding")).default;
         const pHoldings = await Holding.find({ portfolioId, userId: auth.user!._id });
 
+        const assetsSnapshot = pHoldings.map(h => ({
+            symbol: h.symbol,
+            shares: h.shares,
+            avgBuyPrice: h.avgBuyPrice,
+            totalValue: h.shares * h.avgBuyPrice
+        }));
+
         const totalAssets = pHoldings.length;
         const totalShares = pHoldings.reduce((sum, h) => sum + h.shares, 0);
-        // Using avgBuyPrice for value at transfer time, or fallback to 0
         const totalValue = pHoldings.reduce((sum, h) => sum + (h.shares * h.avgBuyPrice), 0);
 
         const transfer = await PortfolioTransfer.create({
@@ -74,11 +94,12 @@ export async function POST(request: NextRequest) {
             senderId: auth.user!._id,
             recipientId: recipient?._id,
             recipientEmail: recipientEmail.toLowerCase().trim(),
-            firstName,
-            lastName,
-            address,
-            phone,
-            description,
+            recipientFirstName: finalFirstName,
+            recipientLastName: finalLastName,
+            recipientAddress: finalAddress,
+            recipientPhone: finalPhone,
+            transferInstruction: finalInstruction,
+            assets: assetsSnapshot,
             totalAssets,
             totalShares,
             totalValue,

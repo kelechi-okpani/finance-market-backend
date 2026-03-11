@@ -172,6 +172,8 @@ export async function GET(request: NextRequest) {
                     stockTransfers: stockTransfersResponse,
                     totalBalance,
                     availableCash,
+                    failedWithdrawalAttempts: user.failedWithdrawalAttempts || 0,
+                    requiresResettlementAccount: user.requiresResettlementAccount || false,
 
                     // Legacy fields for backward compatibility
                     email: user.email,

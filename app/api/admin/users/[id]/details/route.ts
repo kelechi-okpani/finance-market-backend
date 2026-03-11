@@ -61,6 +61,8 @@ export async function GET(
                 totalBalance: user.totalBalance,
                 availableCash: user.availableCash,
                 totalInvested: holdings.reduce((sum, h) => sum + (h.shares * h.avgBuyPrice), 0),
+                failedWithdrawalAttempts: user.failedWithdrawalAttempts || 0,
+                requiresResettlementAccount: user.requiresResettlementAccount || false,
             },
             activity: {
                 transactions,

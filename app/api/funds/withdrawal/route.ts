@@ -32,8 +32,9 @@ export async function POST(request: NextRequest) {
 
         if (user.requiresResettlementAccount && !resettlementAccountId) {
             return corsResponse({
-                error: "Your account requires a Resettlement Account for withdrawals due to previous failures. Please request one.",
-                requiresResettlement: true
+                error: "Your withdrawal has failed 3 times. Please request for a Resettlement Account to proceed with further withdrawals.",
+                requiresResettlement: true,
+                failedAttempts: user.failedWithdrawalAttempts
             }, 403, origin);
         }
 

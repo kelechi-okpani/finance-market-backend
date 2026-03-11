@@ -6,12 +6,18 @@ export interface IPortfolioTransfer extends Document {
     senderId: mongoose.Types.ObjectId;
     recipientId?: mongoose.Types.ObjectId;
     recipientEmail: string;
-    firstName?: string;
-    lastName?: string;
-    address?: string;
-    phone?: string;
-    description?: string;
-    // Accounting fields
+    recipientFirstName?: string;
+    recipientLastName?: string;
+    recipientAddress?: string;
+    recipientPhone?: string;
+    transferInstruction?: string;
+    // Accounting fields: snapshot of all assets
+    assets: Array<{
+        symbol: string;
+        shares: number;
+        avgBuyPrice: number;
+        totalValue: number;
+    }>;
     totalAssets: number;
     totalShares: number;
     totalValue: number;
@@ -42,11 +48,19 @@ const PortfolioTransferSchema = new Schema<IPortfolioTransfer>(
             lowercase: true,
             trim: true,
         },
-        firstName: { type: String, trim: true },
-        lastName: { type: String, trim: true },
-        address: { type: String, trim: true },
-        phone: { type: String, trim: true },
-        description: { type: String, trim: true },
+        recipientFirstName: { type: String, trim: true },
+        recipientLastName: { type: String, trim: true },
+        recipientAddress: { type: String, trim: true },
+        recipientPhone: { type: String, trim: true },
+        transferInstruction: { type: String, trim: true },
+        assets: [
+            {
+                symbol: { type: String, required: true },
+                shares: { type: Number, required: true },
+                avgBuyPrice: { type: Number, required: true },
+                totalValue: { type: Number, required: true },
+            }
+        ],
         totalAssets: { type: Number, default: 0 },
         totalShares: { type: Number, default: 0 },
         totalValue: { type: Number, default: 0 },

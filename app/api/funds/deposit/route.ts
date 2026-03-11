@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
 
     try {
         const body = await request.json();
-        const { amount, method, currency = "USD", description } = body;
+        const { amount, method, currency = "USD", description, bankName, accountName, reference } = body;
 
         if (!amount || amount <= 0) {
             return corsResponse({ error: "Valid amount is required." }, 400, origin);
