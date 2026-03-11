@@ -84,6 +84,7 @@ export async function GET(request: NextRequest) {
                         assetId: h._id.toString(),
                         symbol: h.symbol,
                         name: h.companyName,
+                        sector: h.sector || "",
                         shares: h.shares,
                         avgPrice: h.avgBuyPrice,
                         currentPrice,

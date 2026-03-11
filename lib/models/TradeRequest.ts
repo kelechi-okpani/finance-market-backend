@@ -1,21 +1,23 @@
 import mongoose, { Schema, Document, Model } from "mongoose";
 
-export interface ICartItem extends Document {
+export interface ITradeRequest extends Document {
     userId: mongoose.Types.ObjectId;
     type: "buy" | "sell";
     symbol: string;
     companyName: string;
     sector?: string;
     shares: number;
-    pricePerShare: number; // e.g. N1000
-    totalAmount: number;    // pricePerShare * shares: e.g. N5000
-    portfolioId?: mongoose.Types.ObjectId;
+    pricePerShare: number;
+    totalAmount: number;
+    portfolioId: mongoose.Types.ObjectId;
     holdingId?: mongoose.Types.ObjectId; // for sell
+    status: "pending" | "approved" | "rejected";
+    adminRemarks?: string;
     createdAt: Date;
     updatedAt: Date;
 }
 
-const CartItemSchema = new Schema<ICartItem>(
+const TradeRequestSchema = new Schema<ITradeRequest>(
     {
         userId: {
             type: Schema.Types.ObjectId,
@@ -43,7 +45,7 @@ const CartItemSchema = new Schema<ICartItem>(
         shares: {
             type: Number,
             required: true,
-            min: 0.00001,
+            min: 0,
         },
         pricePerShare: {
             type: Number,
@@ -58,16 +60,25 @@ const CartItemSchema = new Schema<ICartItem>(
         portfolioId: {
             type: Schema.Types.ObjectId,
             ref: "Portfolio",
+            required: true,
         },
         holdingId: {
             type: Schema.Types.ObjectId,
             ref: "Holding",
         },
+        status: {
+            type: String,
+            enum: ["pending", "approved", "rejected"],
+            default: "pending",
+        },
+        adminRemarks: {
+            type: String,
+        },
     },
     { timestamps: true }
 );
 
-const CartItem: Model<ICartItem> =
-    mongoose.models.CartItem || mongoose.model<ICartItem>("CartItem", CartItemSchema);
+const TradeRequest: Model<ITradeRequest> =
+    mongoose.models.TradeRequest || mongoose.model<ITradeRequest>("TradeRequest", TradeRequestSchema);
 
-export default CartItem;
+export default TradeRequest;

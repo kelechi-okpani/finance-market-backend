@@ -6,6 +6,7 @@ export interface IHolding extends Document {
     userId: mongoose.Types.ObjectId;
     symbol: string;
     companyName: string;
+    sector?: string;
     shares: number;
     avgBuyPrice: number;
     targetReturn?: number;
@@ -37,6 +38,10 @@ const HoldingSchema = new Schema<IHolding>(
         companyName: {
             type: String,
             required: true,
+            trim: true,
+        },
+        sector: {
+            type: String,
             trim: true,
         },
         shares: {

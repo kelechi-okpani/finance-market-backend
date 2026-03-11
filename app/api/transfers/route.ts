@@ -60,6 +60,15 @@ export async function POST(request: NextRequest) {
 
         const { firstName, lastName, address, phone, description } = body;
 
+        // Accounting: Calculate all assets in that portfolio
+        const Holding = (await import("@/lib/models/Holding")).default;
+        const pHoldings = await Holding.find({ portfolioId, userId: auth.user!._id });
+
+        const totalAssets = pHoldings.length;
+        const totalShares = pHoldings.reduce((sum, h) => sum + h.shares, 0);
+        // Using avgBuyPrice for value at transfer time, or fallback to 0
+        const totalValue = pHoldings.reduce((sum, h) => sum + (h.shares * h.avgBuyPrice), 0);
+
         const transfer = await PortfolioTransfer.create({
             portfolioId,
             senderId: auth.user!._id,
@@ -70,6 +79,9 @@ export async function POST(request: NextRequest) {
             address,
             phone,
             description,
+            totalAssets,
+            totalShares,
+            totalValue,
             status: 'pending'
         });
 

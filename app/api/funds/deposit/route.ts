@@ -38,27 +38,20 @@ export async function POST(request: NextRequest) {
             description: description || `Deposit via ${method}`,
         });
 
-        // 2. Create CashMovement (for history/status tracking)
-        await CashMovement.create({
+        // 2. Create CashMovement (as a request for admin approval)
+        const cashMovement = await CashMovement.create({
             userId: auth.user!._id,
             type: "deposit",
             amount,
             currency,
             method,
-            status: "completed", // Assuming instant for this API, or "pending" if it needs admin approval
+            status: "pending",
             date: new Date().toISOString().split('T')[0],
         });
 
-        // 3. Update User Balance
-        await User.findByIdAndUpdate(auth.user!._id, {
-            $inc: {
-                totalBalance: amount,
-                availableCash: amount
-            }
-        });
-
         return corsResponse({
-            message: "Deposit successful.",
+            message: "Deposit request submitted for Admin approval.",
+            cashMovement,
             transaction
         }, 201, origin);
 

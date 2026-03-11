@@ -11,6 +11,10 @@ export interface IPortfolioTransfer extends Document {
     address?: string;
     phone?: string;
     description?: string;
+    // Accounting fields
+    totalAssets: number;
+    totalShares: number;
+    totalValue: number;
     status: 'pending' | 'accepted' | 'rejected';
     createdAt: Date;
     resolvedAt?: Date;
@@ -43,6 +47,9 @@ const PortfolioTransferSchema = new Schema<IPortfolioTransfer>(
         address: { type: String, trim: true },
         phone: { type: String, trim: true },
         description: { type: String, trim: true },
+        totalAssets: { type: Number, default: 0 },
+        totalShares: { type: Number, default: 0 },
+        totalValue: { type: Number, default: 0 },
         status: {
             type: String,
             enum: ['pending', 'accepted', 'rejected'],

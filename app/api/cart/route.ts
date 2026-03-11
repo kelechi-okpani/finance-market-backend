@@ -34,7 +34,7 @@ export async function POST(request: NextRequest) {
 
     try {
         const body = await request.json();
-        const { type, symbol, companyName, shares, pricePerShare, portfolioId, holdingId } = body;
+        const { type, symbol, companyName, sector, shares, pricePerShare, portfolioId, holdingId } = body;
 
         if (!type || !symbol || !shares || !pricePerShare) {
             return corsResponse({ error: "Required fields: type, symbol, shares, pricePerShare" }, 400, origin);
@@ -49,6 +49,7 @@ export async function POST(request: NextRequest) {
             type,
             symbol: symbol.toUpperCase(),
             companyName: companyName || symbol,
+            sector,
             shares,
             pricePerShare,
             totalAmount,

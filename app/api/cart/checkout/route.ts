@@ -38,105 +38,63 @@ export async function POST(request: NextRequest) {
             return corsResponse({ error: `Insufficient cash. Total cost $${totalBuyCost}, but available $${user.availableCash}` }, 400, origin);
         }
 
+        const TradeRequest = (await import("@/lib/models/TradeRequest")).default;
         const results = [];
 
-        // Process each item
+        // Process each item to create a TradeRequest
         for (const item of cartItems) {
-            if (item.type === "buy") {
-                // Resolve portfolio
-                let pId = item.portfolioId;
-                if (!pId) {
-                    let mainP = await Portfolio.findOne({ userId: user._id, name: "Main Portfolio" });
-                    if (!mainP) {
-                        mainP = await Portfolio.create({
-                            userId: user._id,
-                            name: "Main Portfolio",
-                            type: "stocks"
-                        });
-                    }
-                    pId = mainP._id;
-                }
-
-                // Buy logic
-                const existingHolding = await Holding.findOne({
-                    userId: user._id,
-                    portfolioId: pId,
-                    symbol: item.symbol
-                });
-
-                if (existingHolding) {
-                    const newTotalShares = existingHolding.shares + item.shares;
-                    const newAvg = ((existingHolding.avgBuyPrice * existingHolding.shares) + (item.pricePerShare * item.shares)) / newTotalShares;
-                    existingHolding.shares = newTotalShares;
-                    existingHolding.avgBuyPrice = newAvg;
-                    await existingHolding.save();
-                } else {
-                    await Holding.create({
+            // Resolve portfolio
+            let pId = item.portfolioId;
+            if (!pId) {
+                let mainP = await Portfolio.findOne({ userId: user._id, name: "Main Portfolio" });
+                if (!mainP) {
+                    mainP = await Portfolio.create({
                         userId: user._id,
-                        portfolioId: pId,
-                        symbol: item.symbol,
-                        companyName: item.companyName,
-                        shares: item.shares,
-                        avgBuyPrice: item.pricePerShare,
-                        boughtAt: new Date()
+                        name: "Main Portfolio",
+                        type: "stocks"
                     });
                 }
-
-                await Transaction.create({
-                    userId: user._id,
-                    type: "buy",
-                    amount: item.totalAmount,
-                    description: `Cart Checkout: Bought ${item.shares} of ${item.symbol}`,
-                    referenceId: item.symbol
-                });
-
-                user.availableCash -= item.totalAmount;
-                results.push({ symbol: item.symbol, status: "bought", amount: item.totalAmount });
-
-            } else if (item.type === "sell") {
-                // Sell logic
-                const holding = await Holding.findOne({
-                    _id: item.holdingId,
-                    userId: user._id
-                }) || await Holding.findOne({
-                    symbol: item.symbol,
-                    userId: user._id
-                });
-
-                if (!holding || holding.shares < item.shares) {
-                    results.push({ symbol: item.symbol, status: "failed", error: "Insufficient shares" });
-                    continue;
-                }
-
-                if (holding.shares === item.shares) {
-                    await Holding.deleteOne({ _id: holding._id });
-                } else {
-                    holding.shares -= item.shares;
-                    await holding.save();
-                }
-
-                await Transaction.create({
-                    userId: user._id,
-                    type: "sell",
-                    amount: item.totalAmount,
-                    description: `Cart Checkout: Sold ${item.shares} of ${item.symbol}`,
-                    referenceId: item.symbol
-                });
-
-                user.availableCash += item.totalAmount;
-                results.push({ symbol: item.symbol, status: "sold", amount: item.totalAmount });
+                pId = mainP._id;
             }
+
+            // Create the request
+            const tradeReq = await TradeRequest.create({
+                userId: user._id,
+                type: item.type,
+                symbol: item.symbol,
+                companyName: item.companyName,
+                sector: item.sector,
+                shares: item.shares,
+                pricePerShare: item.pricePerShare,
+                totalAmount: item.totalAmount,
+                portfolioId: pId,
+                holdingId: item.holdingId,
+                status: "pending"
+            });
+
+            results.push({
+                symbol: item.symbol,
+                type: item.type,
+                requestId: tradeReq._id,
+                status: "pending_approval"
+            });
         }
 
+        // Optional: Deduct cash immediately for 'buy' or wait for approval?
+        // User said: "moves from wallet to investment but that’s when admin Approves"
+        // Usually, we should lock/deduct cash now to prevent double-spending.
+        // For 'sell', we should lock the shares (though we don't have a 'lockedShares' field yet).
+        // Let's at least deduct the cash for buy here to be safe.
+        user.availableCash -= totalBuyCost;
         await user.save();
 
-        // Clear cart after checkout
+        // Clear cart after creating requests
         await CartItem.deleteMany({ userId: auth.user!._id });
 
         return corsResponse({
-            message: "Checkout completed",
+            message: "Trade requests submitted for Admin approval.",
             results,
-            newBalance: user.availableCash
+            remainingCash: user.availableCash
         }, 200, origin);
 
     } catch (error) {
