@@ -201,7 +201,7 @@ Include the token in all subsequent requests:
 | DELETE | `/api/cart/:id` | Remove item from cart | Approved |
 | POST | `/api/cart/checkout`| Submit cart for Admin approval | Approved |
 | POST | `/api/transfers/stock`| Transfer specific stock shares to email | Approved |
-| POST | `/api/transfers` | Initiate Portfolio Transfer using `portfolioId`, `toUserEmail`, `assetSymbol`, `shares`, `firstName`, `lastName`, `address`, `phone`, `description`, `assetName`, `valueAtTransfer`. | Approved |
+| POST | `/api/transfers` | Initiate Portfolio Transfer using `portfolioId`, `toUserEmail`, `assets` (array), `firstName`, `lastName`, `address`, `phone`, `description`. | Approved |
 | GET | `/api/transfers` | List sent/received transfer history | Approved |
 
 ### ⚡ Admin & Control Center

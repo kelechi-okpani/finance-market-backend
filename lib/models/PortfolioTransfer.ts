@@ -11,17 +11,15 @@ export interface IPortfolioTransfer extends Document {
     recipientAddress?: string;
     recipientPhone?: string;
     transferInstruction?: string;
-    // Specific asset fields (from user payload)
-    assetSymbol?: string;
-    shares?: number;
-    assetName?: string;
-    valueAtTransfer?: number;
-    // Accounting fields: snapshot of all assets
+    // Assets being transferred (from user payload)
     assets: Array<{
         symbol: string;
         shares: number;
-        avgBuyPrice: number;
-        totalValue: number;
+        assetName?: string;
+        valueAtTransfer?: number;
+        // Accounting fields (optional, to be filled by system)
+        avgBuyPrice?: number;
+        totalValue?: number;
     }>;
     totalAssets: number;
     totalShares: number;
@@ -58,16 +56,14 @@ const PortfolioTransferSchema = new Schema<IPortfolioTransfer>(
         recipientAddress: { type: String, trim: true },
         recipientPhone: { type: String, trim: true },
         transferInstruction: { type: String, trim: true },
-        assetSymbol: { type: String, trim: true, uppercase: true },
-        shares: { type: Number },
-        assetName: { type: String, trim: true },
-        valueAtTransfer: { type: Number },
         assets: [
             {
                 symbol: { type: String, required: true },
                 shares: { type: Number, required: true },
-                avgBuyPrice: { type: Number, required: true },
-                totalValue: { type: Number, required: true },
+                assetName: { type: String, trim: true },
+                valueAtTransfer: { type: Number },
+                avgBuyPrice: { type: Number },
+                totalValue: { type: Number },
             }
         ],
         totalAssets: { type: Number, default: 0 },

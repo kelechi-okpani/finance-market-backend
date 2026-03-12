@@ -44,15 +44,12 @@ export async function POST(request: NextRequest) {
         const { 
             portfolioId, 
             toUserEmail, 
-            assetSymbol, 
-            shares, 
+            assets: inputAssets = [], // Array of TransferAssetItem
             firstName,
             lastName,
             address,
             phone,
-            description,
-            assetName,
-            valueAtTransfer
+            description
         } = body;
 
         if (!portfolioId || !toUserEmail) {
@@ -72,20 +69,28 @@ export async function POST(request: NextRequest) {
         // Check if recipient exists
         const recipient = await User.findOne({ email: recipientEmail.toLowerCase() });
 
-        // Accounting: Snapshot all assets in that portfolio
+        // Fetch current holdings for accounting/verification
         const Holding = (await import("@/lib/models/Holding")).default;
-        const pHoldings = await Holding.find({ portfolioId, userId: auth.user!._id });
+        const currentHoldings = await Holding.find({ portfolioId, userId: auth.user!._id });
 
-        const assetsSnapshot = pHoldings.map(h => ({
-            symbol: h.symbol,
-            shares: h.shares,
-            avgBuyPrice: h.avgBuyPrice,
-            totalValue: h.shares * h.avgBuyPrice
-        }));
+        // Map and validate transferred assets
+        const assetsSnapshot = inputAssets.map(item => {
+            const holding = currentHoldings.find(h => h.symbol.toUpperCase() === item.assetSymbol.toUpperCase());
+            return {
+                symbol: item.assetSymbol.toUpperCase(),
+                shares: item.shares,
+                assetName: item.assetName || holding?.companyName || item.assetSymbol,
+                valueAtTransfer: item.valueAtTransfer,
+                // Internal accounting
+                avgBuyPrice: holding?.avgBuyPrice,
+                totalValue: (holding?.avgBuyPrice || 0) * item.shares
+            };
+        });
 
-        const totalAssets = pHoldings.length;
-        const totalShares = pHoldings.reduce((sum, h) => sum + h.shares, 0);
-        const totalValue = pHoldings.reduce((sum, h) => sum + (h.shares * h.avgBuyPrice), 0);
+        // Totals for this specific transfer request
+        const totalAssets = assetsSnapshot.length;
+        const totalShares = assetsSnapshot.reduce((sum, h) => sum + h.shares, 0);
+        const totalValue = assetsSnapshot.reduce((sum, h) => sum + (h.totalValue || 0), 0);
 
         const transfer = await PortfolioTransfer.create({
             portfolioId,
@@ -97,10 +102,6 @@ export async function POST(request: NextRequest) {
             recipientAddress: address,
             recipientPhone: phone,
             transferInstruction: description,
-            assetSymbol,
-            shares,
-            assetName,
-            valueAtTransfer,
             assets: assetsSnapshot,
             totalAssets,
             totalShares,

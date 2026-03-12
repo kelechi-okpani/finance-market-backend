@@ -62,68 +62,77 @@ export async function PUT(
             return corsResponse({ error: "Recipient user not found." }, 404, origin);
         }
 
-        // Logic for Partial vs Full Transfer
-        if (transfer.assetSymbol) {
-            // PARTIAL TRANSFER: Only move the specific asset
-            const holding = await Holding.findOne({
-                userId: transfer.senderId,
-                portfolioId: transfer.portfolioId,
-                symbol: transfer.assetSymbol
-            });
-
-            if (!holding) {
-                return corsResponse({ error: "Holding not found in the source portfolio." }, 404, origin);
-            }
-
-            const transferShares = transfer.shares || holding.shares;
-            if (transferShares > holding.shares) {
-                return corsResponse({ error: "Insufficient shares for transfer." }, 400, origin);
-            }
-
+        // Logic for Partial (Multi-Asset) vs Full Transfer
+        if (transfer.assets && transfer.assets.length > 0) {
             // Find or create recipient's Main Portfolio
             let recipientPortfolio = await Portfolio.findOne({ userId: recipient._id, name: "Main Portfolio" });
             if (!recipientPortfolio) {
                 recipientPortfolio = await Portfolio.create({ userId: recipient._id, name: "Main Portfolio" });
             }
 
-            // Update recipient's holdings
-            const existingRecipientHolding = await Holding.findOne({
-                userId: recipient._id,
-                portfolioId: recipientPortfolio._id,
-                symbol: transfer.assetSymbol
-            });
+            for (const item of transfer.assets) {
+                // Find source holding
+                const sourceHolding = await Holding.findOne({
+                    userId: transfer.senderId,
+                    portfolioId: transfer.portfolioId,
+                    symbol: item.symbol
+                });
 
-            if (existingRecipientHolding) {
-                // Merge into existing
-                const newTotal = existingRecipientHolding.shares + transferShares;
-                const newAvg = ((existingRecipientHolding.avgBuyPrice * existingRecipientHolding.shares) + (holding.avgBuyPrice * transferShares)) / newTotal;
-                existingRecipientHolding.shares = newTotal;
-                existingRecipientHolding.avgBuyPrice = newAvg;
-                await existingRecipientHolding.save();
-            } else {
-                // Create new holding for recipient
-                await Holding.create({
+                if (!sourceHolding) continue; // Skip if holding not found anymore
+
+                const transferShares = Math.min(item.shares, sourceHolding.shares);
+                
+                // Update recipient's holdings
+                const existingRecipientHolding = await Holding.findOne({
                     userId: recipient._id,
                     portfolioId: recipientPortfolio._id,
-                    symbol: holding.symbol,
-                    companyName: holding.companyName,
-                    sector: holding.sector,
-                    shares: transferShares,
-                    avgBuyPrice: holding.avgBuyPrice,
-                    boughtAt: new Date()
+                    symbol: item.symbol
                 });
-            }
 
-            // Update sender's holdings
-            if (transferShares === holding.shares) {
-                await Holding.deleteOne({ _id: holding._id });
-            } else {
-                holding.shares -= transferShares;
-                await holding.save();
-            }
+                if (existingRecipientHolding) {
+                    // Merge into existing
+                    const newTotal = existingRecipientHolding.shares + transferShares;
+                    const newAvg = ((existingRecipientHolding.avgBuyPrice * existingRecipientHolding.shares) + (sourceHolding.avgBuyPrice * transferShares)) / newTotal;
+                    existingRecipientHolding.shares = newTotal;
+                    existingRecipientHolding.avgBuyPrice = newAvg;
+                    await existingRecipientHolding.save();
+                } else {
+                    // Create new holding for recipient (clone source holding but update owner/portfolio/shares)
+                    await Holding.create({
+                        userId: recipient._id,
+                        portfolioId: recipientPortfolio._id,
+                        symbol: sourceHolding.symbol,
+                        companyName: sourceHolding.companyName,
+                        name: sourceHolding.name || sourceHolding.companyName,
+                        sector: sourceHolding.sector,
+                        shares: transferShares,
+                        avgBuyPrice: sourceHolding.avgBuyPrice,
+                        boughtAt: new Date(),
+                        // Copy snapshot fields
+                        market: sourceHolding.market,
+                        price: sourceHolding.price,
+                        change: sourceHolding.change,
+                        changePercent: sourceHolding.changePercent,
+                        volume: sourceHolding.volume,
+                        marketCap: sourceHolding.marketCap,
+                        peRatio: sourceHolding.peRatio,
+                        dividend: sourceHolding.dividend,
+                        marketTrend: sourceHolding.marketTrend,
+                        description: sourceHolding.description
+                    });
+                }
 
+                // Update sender's holdings
+                if (transferShares >= sourceHolding.shares) {
+                    await Holding.deleteOne({ _id: sourceHolding._id });
+                } else {
+                    sourceHolding.shares -= transferShares;
+                    await sourceHolding.save();
+                }
+            }
         } else {
-            // FULL TRANSFER: Reassign the entire Portfolio and all its Holdings
+            // FULL TRANSFER Fallback: Reassign the entire Portfolio and all its Holdings
+            // (Used if assets array is empty or not provided)
             const portfolio = await Portfolio.findById(transfer.portfolioId);
             if (portfolio) {
                 portfolio.userId = recipient._id;
@@ -143,9 +152,7 @@ export async function PUT(
         await transfer.save();
 
         return corsResponse({
-            message: transfer.assetSymbol 
-                ? `Successfully transferred ${transfer.shares} shares of ${transfer.assetSymbol} to the recipient's Main Portfolio.`
-                : "Portfolio transfer approved and reassigned successfully.",
+            message: "Portfolio transfer approved and processed successfully.",
             transfer
         }, 200, origin);
 
