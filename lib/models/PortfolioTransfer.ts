@@ -3,7 +3,6 @@ import mongoose, { Schema, Document, Model } from "mongoose";
 export interface IPortfolioTransfer extends Document {
     _id: mongoose.Types.ObjectId;
     portfolioId: mongoose.Types.ObjectId;
-    TransferPayload?: string; // Original field from user payload
     senderId: mongoose.Types.ObjectId;
     recipientId?: mongoose.Types.ObjectId;
     recipientEmail: string;
@@ -39,7 +38,6 @@ const PortfolioTransferSchema = new Schema<IPortfolioTransfer>(
             ref: "Portfolio",
             required: true,
         },
-        TransferPayload: { type: String, trim: true },
         senderId: {
             type: Schema.Types.ObjectId,
             ref: "User",

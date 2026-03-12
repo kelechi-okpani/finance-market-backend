@@ -42,26 +42,24 @@ export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
         const { 
-            portfolioId: bodyPortfolioId,
-            TransferPayload, // also used as portfolioId if bodyPortfolioId is missing
+            portfolioId, 
+            toUserEmail, 
             assetSymbol, 
             shares, 
-            toUserEmail, 
-            assetName, 
-            valueAtTransfer,
             firstName,
             lastName,
             address,
             phone,
-            description
+            description,
+            assetName,
+            valueAtTransfer
         } = body;
 
-        const portfolioId = bodyPortfolioId || TransferPayload;
-        const recipientEmail = toUserEmail || body.recipientEmail;
-
-        if (!portfolioId || !recipientEmail) {
-            return corsResponse({ error: "Portfolio ID (TransferPayload) and recipient email (toUserEmail) are required." }, 400, origin);
+        if (!portfolioId || !toUserEmail) {
+            return corsResponse({ error: "portfolioId and toUserEmail are required." }, 400, origin);
         }
+
+        const recipientEmail = toUserEmail;
 
         await connectDB();
 
@@ -91,7 +89,6 @@ export async function POST(request: NextRequest) {
 
         const transfer = await PortfolioTransfer.create({
             portfolioId,
-            TransferPayload,
             senderId: auth.user!._id,
             recipientId: recipient?._id,
             recipientEmail: recipientEmail.toLowerCase().trim(),
