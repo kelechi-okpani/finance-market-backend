@@ -75,7 +75,8 @@ export async function GET(
             },
             assets: {
                 portfolios,
-                holdings
+                holdings,
+                pendingTrades: activity.tradeRequests.filter((r: any) => r.status === 'pending')
             }
         }, 200, origin);
 

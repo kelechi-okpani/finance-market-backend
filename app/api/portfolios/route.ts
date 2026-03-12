@@ -49,9 +49,18 @@ export async function POST(request: NextRequest) {
 
         await connectDB();
 
+        // SINGLE PORTFOLIO ENFORCEMENT
+        const existingPortfolio = await Portfolio.findOne({ userId: auth.user!._id });
+        if (existingPortfolio) {
+            return corsResponse({ 
+                error: "Multiple portfolios are not allowed. You already have a portfolio.",
+                portfolio: existingPortfolio 
+            }, 400, origin);
+        }
+
         const portfolio = await Portfolio.create({
             userId: auth.user!._id,
-            name: name.trim(),
+            name: name?.trim() || "Main Portfolio",
             description: description?.trim(),
             type: type || 'stocks',
             status: 'active',

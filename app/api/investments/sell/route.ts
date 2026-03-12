@@ -36,33 +36,36 @@ export async function POST(request: NextRequest) {
 
         const totalProceeds = shares * price;
 
-        // 2. Create Transaction (ledger)
+        // 2. Create Trade Request (Pending Admin Approval)
+        const TradeRequest = (await import("@/lib/models/TradeRequest")).default;
+        
+        const tradeReq = await TradeRequest.create({
+            userId: auth.user!._id,
+            type: "sell",
+            symbol: holding.symbol,
+            companyName: holding.companyName,
+            sector: holding.sector,
+            shares: shares,
+            pricePerShare: price,
+            totalAmount: totalProceeds,
+            portfolioId: holding.portfolioId,
+            holdingId: holding._id,
+            status: "pending"
+        });
+
+        // 3. Create Transaction (ledger for the request)
         const transaction = await Transaction.create({
             userId: auth.user!._id,
             type: 'sell',
             amount: totalProceeds,
-            description: `Sold ${shares} shares of ${holding.symbol} at $${price}`,
+            description: `Trade Request (Pending): Sell ${shares} shares of ${holding.symbol} at $${price}`,
             referenceId: holding.symbol,
         });
 
-        // 3. Update or Remove Holding
-        if (holding.shares === shares) {
-            await Holding.deleteOne({ _id: holding._id });
-        } else {
-            holding.shares -= shares;
-            await holding.save();
-        }
-
-        // 4. Update User Balance (Add to available cash)
-        await User.findByIdAndUpdate(auth.user!._id, {
-            $inc: {
-                availableCash: totalProceeds
-            }
-        });
-
         return corsResponse({
-            message: `Successfully sold ${shares} shares of ${holding.symbol}.`,
-            transaction
+            message: `Sell request for ${shares} shares of ${holding.symbol} submitted for Admin approval.`,
+            transaction,
+            requestId: tradeReq._id
         }, 201, origin);
 
     } catch (error) {

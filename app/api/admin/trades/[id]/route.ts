@@ -51,6 +51,14 @@ export async function PUT(
             if (trade.type === "buy") {
                 user.availableCash += trade.totalAmount;
                 await user.save();
+
+                await Transaction.create({
+                    userId: user._id,
+                    type: "deposit",
+                    amount: trade.totalAmount,
+                    description: `Refund: Rejected Buy Request for ${trade.shares} shares of ${trade.symbol}`,
+                    referenceId: trade.symbol
+                });
             }
 
             trade.status = "rejected";
@@ -62,11 +70,29 @@ export async function PUT(
         // Approval Logic
         if (trade.type === "buy") {
             const Stock = (await import("@/lib/models/Stock")).default;
+            const Portfolio = (await import("@/lib/models/Portfolio")).default;
             const stockData = await Stock.findOne({ symbol: trade.symbol.toUpperCase() });
+
+            // Ensure portfolio validity (Single Portfolio Policy)
+            let targetPortfolioId = trade.portfolioId;
+            const portfolioExists = await Portfolio.findOne({ _id: targetPortfolioId, userId: user._id });
+            
+            if (!portfolioExists) {
+                let mainPortfolio = await Portfolio.findOne({ userId: user._id });
+                if (!mainPortfolio) {
+                    mainPortfolio = await Portfolio.create({
+                        userId: user._id,
+                        name: "Main Portfolio",
+                        type: "stocks",
+                        source: "auto-fix"
+                    });
+                }
+                targetPortfolioId = mainPortfolio._id;
+            }
 
             const existing = await Holding.findOne({
                 userId: user._id,
-                portfolioId: trade.portfolioId,
+                portfolioId: targetPortfolioId,
                 symbol: trade.symbol
             });
 
@@ -95,7 +121,7 @@ export async function PUT(
             } else {
                 await Holding.create({
                     userId: user._id,
-                    portfolioId: trade.portfolioId,
+                    portfolioId: targetPortfolioId,
                     symbol: trade.symbol,
                     companyName: trade.companyName,
                     name: stockData?.name || trade.companyName,

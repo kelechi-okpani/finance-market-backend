@@ -51,85 +51,42 @@ export async function POST(request: NextRequest) {
             targetPortfolioId = defaultPortfolio._id;
         }
 
-        // 3. Create Transaction (ledger)
+        // 3. Create Trade Request (Pending Admin Approval)
+        const TradeRequest = (await import("@/lib/models/TradeRequest")).default;
+        const Stock = (await import("@/lib/models/Stock")).default;
+        const stockData = await Stock.findOne({ symbol: symbol.toUpperCase() });
+
+        const tradeReq = await TradeRequest.create({
+            userId: user._id,
+            type: "buy",
+            symbol: symbol.toUpperCase(),
+            companyName: companyName || stockData?.name || symbol,
+            sector: stockData?.sector || "Stocks",
+            shares: shares,
+            pricePerShare: price,
+            totalAmount: totalCost,
+            portfolioId: targetPortfolioId,
+            status: "pending"
+        });
+
+        // 4. Create Transaction (ledger for the request)
         const transaction = await Transaction.create({
             userId: user._id,
             type: 'buy',
             amount: totalCost,
-            description: `Bought ${shares} shares of ${symbol} at $${price}`,
+            description: `Trade Request (Pending): Buy ${shares} shares of ${symbol} at $${price}`,
             referenceId: symbol,
         });
 
-        // 4. Update or Create Holding
-        const Stock = (await import("@/lib/models/Stock")).default;
-        const stockData = await Stock.findOne({ symbol: symbol.toUpperCase() });
-
-        const existingHolding = await Holding.findOne({
-            userId: user._id,
-            portfolioId: targetPortfolioId,
-            symbol: symbol.toUpperCase()
-        });
-
-        if (existingHolding) {
-            const newTotalShares = existingHolding.shares + shares;
-            const newAvgPrice = ((existingHolding.avgBuyPrice * existingHolding.shares) + (price * shares)) / newTotalShares;
-
-            existingHolding.shares = newTotalShares;
-            existingHolding.avgBuyPrice = newAvgPrice;
-            
-            if (stockData) {
-                existingHolding.name = stockData.name;
-                existingHolding.price = stockData.price;
-                existingHolding.change = stockData.change;
-                existingHolding.changePercent = stockData.changePercent;
-                existingHolding.volume = stockData.volume;
-                existingHolding.marketCap = stockData.marketCap;
-                existingHolding.peRatio = stockData.peRatio;
-                existingHolding.dividend = stockData.dividend;
-                existingHolding.marketTrend = stockData.marketTrend;
-                existingHolding.description = stockData.description;
-                existingHolding.market = stockData.market;
-            }
-
-            await existingHolding.save();
-        } else {
-            await Holding.create({
-                userId: user._id,
-                portfolioId: targetPortfolioId,
-                symbol: symbol.toUpperCase(),
-                companyName: companyName || stockData?.name || symbol,
-                name: stockData?.name || companyName || symbol,
-                shares,
-                avgBuyPrice: price,
-                boughtAt: new Date(),
-                // Market snapshot
-                market: stockData?.market,
-                price: stockData?.price,
-                change: stockData?.change,
-                changePercent: stockData?.changePercent,
-                volume: stockData?.volume,
-                marketCap: stockData?.marketCap,
-                peRatio: stockData?.peRatio,
-                dividend: stockData?.dividend,
-                marketTrend: stockData?.marketTrend,
-                description: stockData?.description
-            });
-        }
-
-        // 5. Update User Balance (Deduct from available cash)
-        await User.findByIdAndUpdate(user._id, {
-            $inc: {
-                availableCash: -totalCost
-                // totalBalance is usually sum of all assets + cash, 
-                // but since totalBalance field exists in User model, we keep it as "Net Worth" or "Cash + Assets"
-                // If totalBalance includes assets, it doesn't change on buy (just moves from cash to stock). 
-                // But often it's "Wallet Balance". Let's update it accordingly.
-            }
-        });
+        // 5. Update User Balance (Deduct from available cash immediately)
+        user.availableCash -= totalCost;
+        await user.save();
 
         return corsResponse({
-            message: `Successfully bought ${shares} shares of ${symbol}.`,
-            transaction
+            message: `Trade request for ${shares} shares of ${symbol} submitted for Admin approval. $${totalCost} has been deducted from your wallet.`,
+            transaction,
+            requestId: tradeReq._id,
+            availableCash: user.availableCash
         }, 201, origin);
 
     } catch (error) {
