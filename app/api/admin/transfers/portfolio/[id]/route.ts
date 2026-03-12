@@ -62,18 +62,79 @@ export async function PUT(
             return corsResponse({ error: "Recipient user not found." }, 404, origin);
         }
 
-        // 1. Update Portfolio Owner
-        const portfolio = await Portfolio.findById(transfer.portfolioId);
-        if (portfolio) {
-            portfolio.userId = recipient._id;
-            await portfolio.save();
-        }
+        // Logic for Partial vs Full Transfer
+        if (transfer.assetSymbol) {
+            // PARTIAL TRANSFER: Only move the specific asset
+            const holding = await Holding.findOne({
+                userId: transfer.senderId,
+                portfolioId: transfer.portfolioId,
+                symbol: transfer.assetSymbol
+            });
 
-        // 2. Update all Holdings in that Portfolio
-        await Holding.updateMany(
-            { portfolioId: transfer.portfolioId },
-            { $set: { userId: recipient._id } }
-        );
+            if (!holding) {
+                return corsResponse({ error: "Holding not found in the source portfolio." }, 404, origin);
+            }
+
+            const transferShares = transfer.shares || holding.shares;
+            if (transferShares > holding.shares) {
+                return corsResponse({ error: "Insufficient shares for transfer." }, 400, origin);
+            }
+
+            // Find or create recipient's Main Portfolio
+            let recipientPortfolio = await Portfolio.findOne({ userId: recipient._id, name: "Main Portfolio" });
+            if (!recipientPortfolio) {
+                recipientPortfolio = await Portfolio.create({ userId: recipient._id, name: "Main Portfolio" });
+            }
+
+            // Update recipient's holdings
+            const existingRecipientHolding = await Holding.findOne({
+                userId: recipient._id,
+                portfolioId: recipientPortfolio._id,
+                symbol: transfer.assetSymbol
+            });
+
+            if (existingRecipientHolding) {
+                // Merge into existing
+                const newTotal = existingRecipientHolding.shares + transferShares;
+                const newAvg = ((existingRecipientHolding.avgBuyPrice * existingRecipientHolding.shares) + (holding.avgBuyPrice * transferShares)) / newTotal;
+                existingRecipientHolding.shares = newTotal;
+                existingRecipientHolding.avgBuyPrice = newAvg;
+                await existingRecipientHolding.save();
+            } else {
+                // Create new holding for recipient
+                await Holding.create({
+                    userId: recipient._id,
+                    portfolioId: recipientPortfolio._id,
+                    symbol: holding.symbol,
+                    companyName: holding.companyName,
+                    sector: holding.sector,
+                    shares: transferShares,
+                    avgBuyPrice: holding.avgBuyPrice,
+                    boughtAt: new Date()
+                });
+            }
+
+            // Update sender's holdings
+            if (transferShares === holding.shares) {
+                await Holding.deleteOne({ _id: holding._id });
+            } else {
+                holding.shares -= transferShares;
+                await holding.save();
+            }
+
+        } else {
+            // FULL TRANSFER: Reassign the entire Portfolio and all its Holdings
+            const portfolio = await Portfolio.findById(transfer.portfolioId);
+            if (portfolio) {
+                portfolio.userId = recipient._id;
+                await portfolio.save();
+            }
+
+            await Holding.updateMany(
+                { portfolioId: transfer.portfolioId },
+                { $set: { userId: recipient._id } }
+            );
+        }
 
         // 3. Complete Transfer record
         transfer.status = "accepted";
@@ -82,7 +143,9 @@ export async function PUT(
         await transfer.save();
 
         return corsResponse({
-            message: "Portfolio transfer approved and reassigned successfully.",
+            message: transfer.assetSymbol 
+                ? `Successfully transferred ${transfer.shares} shares of ${transfer.assetSymbol} to the recipient's Main Portfolio.`
+                : "Portfolio transfer approved and reassigned successfully.",
             transfer
         }, 200, origin);
 

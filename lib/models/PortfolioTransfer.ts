@@ -3,6 +3,7 @@ import mongoose, { Schema, Document, Model } from "mongoose";
 export interface IPortfolioTransfer extends Document {
     _id: mongoose.Types.ObjectId;
     portfolioId: mongoose.Types.ObjectId;
+    TransferPayload?: string; // Original field from user payload
     senderId: mongoose.Types.ObjectId;
     recipientId?: mongoose.Types.ObjectId;
     recipientEmail: string;
@@ -11,6 +12,11 @@ export interface IPortfolioTransfer extends Document {
     recipientAddress?: string;
     recipientPhone?: string;
     transferInstruction?: string;
+    // Specific asset fields (from user payload)
+    assetSymbol?: string;
+    shares?: number;
+    assetName?: string;
+    valueAtTransfer?: number;
     // Accounting fields: snapshot of all assets
     assets: Array<{
         symbol: string;
@@ -33,6 +39,7 @@ const PortfolioTransferSchema = new Schema<IPortfolioTransfer>(
             ref: "Portfolio",
             required: true,
         },
+        TransferPayload: { type: String, trim: true },
         senderId: {
             type: Schema.Types.ObjectId,
             ref: "User",
@@ -53,6 +60,10 @@ const PortfolioTransferSchema = new Schema<IPortfolioTransfer>(
         recipientAddress: { type: String, trim: true },
         recipientPhone: { type: String, trim: true },
         transferInstruction: { type: String, trim: true },
+        assetSymbol: { type: String, trim: true, uppercase: true },
+        shares: { type: Number },
+        assetName: { type: String, trim: true },
+        valueAtTransfer: { type: Number },
         assets: [
             {
                 symbol: { type: String, required: true },

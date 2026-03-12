@@ -41,10 +41,25 @@ export async function POST(request: NextRequest) {
 
     try {
         const body = await request.json();
-        const { portfolioId, recipientEmail } = body;
+        const { 
+            TransferPayload, // used as portfolioId
+            assetSymbol, 
+            shares, 
+            toUserEmail, 
+            assetName, 
+            valueAtTransfer,
+            firstName,
+            lastName,
+            address,
+            phone,
+            description
+        } = body;
+
+        const portfolioId = TransferPayload || body.portfolioId;
+        const recipientEmail = toUserEmail || body.recipientEmail;
 
         if (!portfolioId || !recipientEmail) {
-            return corsResponse({ error: "Portfolio ID and recipient email are required." }, 400, origin);
+            return corsResponse({ error: "Portfolio ID (TransferPayload) and recipient email (toUserEmail) are required." }, 400, origin);
         }
 
         await connectDB();
@@ -55,24 +70,8 @@ export async function POST(request: NextRequest) {
             return corsResponse({ error: "Portfolio not found or access denied." }, 404, origin);
         }
 
-        // Check if recipient exists (optional, can be pending for email)
+        // Check if recipient exists
         const recipient = await User.findOne({ email: recipientEmail.toLowerCase() });
-
-        // Map user's exact requested param names:
-        const {
-            firstName,
-            lastName,
-            Address,
-            phone,
-            description, // used as Transfer Instruction
-            "Transfer Instruction": transferInstructionParam
-        } = body;
-
-        const finalInstruction = transferInstructionParam || description;
-        const finalPhone = phone;
-        const finalAddress = Address;
-        const finalFirstName = firstName;
-        const finalLastName = lastName;
 
         // Accounting: Snapshot all assets in that portfolio
         const Holding = (await import("@/lib/models/Holding")).default;
@@ -91,14 +90,19 @@ export async function POST(request: NextRequest) {
 
         const transfer = await PortfolioTransfer.create({
             portfolioId,
+            TransferPayload,
             senderId: auth.user!._id,
             recipientId: recipient?._id,
             recipientEmail: recipientEmail.toLowerCase().trim(),
-            recipientFirstName: finalFirstName,
-            recipientLastName: finalLastName,
-            recipientAddress: finalAddress,
-            recipientPhone: finalPhone,
-            transferInstruction: finalInstruction,
+            recipientFirstName: firstName,
+            recipientLastName: lastName,
+            recipientAddress: address,
+            recipientPhone: phone,
+            transferInstruction: description,
+            assetSymbol,
+            shares,
+            assetName,
+            valueAtTransfer,
             assets: assetsSnapshot,
             totalAssets,
             totalShares,
