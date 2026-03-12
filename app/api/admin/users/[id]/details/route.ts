@@ -7,6 +7,8 @@ import Portfolio from "@/lib/models/Portfolio";
 import CashMovement from "@/lib/models/CashMovement";
 import TradeRequest from "@/lib/models/TradeRequest";
 import PortfolioTransfer from "@/lib/models/PortfolioTransfer";
+import KYCDocument from "@/lib/models/KYCDocument";
+import AddressVerification from "@/lib/models/AddressVerification";
 import { requireAdmin } from "@/lib/auth";
 import { corsResponse, corsOptionsResponse } from "@/lib/cors";
 
@@ -17,6 +19,7 @@ export async function OPTIONS(request: NextRequest) {
 /**
  * GET /api/admin/users/[id]/details
  * Comprehensive detailed view of a user for admin oversight.
+ * Includes actual KYC document URLs and address proof documents.
  */
 export async function GET(
     request: NextRequest,
@@ -44,15 +47,23 @@ export async function GET(
             cashMovements,
             tradeRequests,
             sentTransfers,
-            receivedTransfers
+            receivedTransfers,
+            kycDocuments,
+            addressVerifications
         ] = await Promise.all([
             Transaction.find({ userId: id }).sort({ createdAt: -1 }),
-            Holding.find({ userId: id }).populate('portfolioId', 'name'),
+            Holding.find({ userId: id }).populate("portfolioId", "name"),
             Portfolio.find({ userId: id }),
             CashMovement.find({ userId: id }).sort({ createdAt: -1 }),
             TradeRequest.find({ userId: id }).sort({ createdAt: -1 }),
-            PortfolioTransfer.find({ senderId: id }).populate('portfolioId', 'name'),
-            PortfolioTransfer.find({ recipientId: id }).populate('portfolioId', 'name').populate('senderId', 'firstName lastName email')
+            PortfolioTransfer.find({ senderId: id }).populate("portfolioId", "name"),
+            PortfolioTransfer.find({ recipientId: id })
+                .populate("portfolioId", "name")
+                .populate("senderId", "firstName lastName email"),
+            // ★ Actual KYC identity documents with real upload URLs
+            KYCDocument.find({ userId: id }).sort({ createdAt: -1 }),
+            // ★ Actual address proof documents with real upload URLs
+            AddressVerification.find({ userId: id }).sort({ createdAt: -1 }),
         ]);
 
         return corsResponse({
@@ -64,20 +75,54 @@ export async function GET(
                 failedWithdrawalAttempts: user.failedWithdrawalAttempts || 0,
                 requiresResettlementAccount: user.requiresResettlementAccount || false,
             },
+            // ★ All uploaded KYC documents with actual image/document URLs
+            documents: {
+                kyc: kycDocuments.map(doc => ({
+                    _id: doc._id,
+                    userId: doc.userId,
+                    documentType: doc.documentType,
+                    frontPageUrl: doc.frontPageUrl,   // ← actual URL stored in DB
+                    backPageUrl: doc.backPageUrl,     // ← actual URL stored in DB
+                    status: doc.status,
+                    rejectionReason: doc.rejectionReason || null,
+                    reviewedBy: doc.reviewedBy || null,
+                    reviewedAt: doc.reviewedAt || null,
+                    createdAt: doc.createdAt,
+                    updatedAt: doc.updatedAt,
+                })),
+                address: addressVerifications.map(av => ({
+                    _id: av._id,
+                    userId: av.userId,
+                    houseNumber: av.houseNumber,
+                    streetAddress: av.streetAddress,
+                    city: av.city,
+                    stateProvince: av.stateProvince,
+                    zipCode: av.zipCode,
+                    country: av.country,
+                    poaDocumentType: av.poaDocumentType,
+                    poaDocumentUrl: av.poaDocumentUrl, // ← actual URL stored in DB
+                    status: av.status,
+                    rejectionReason: av.rejectionReason || null,
+                    reviewedBy: av.reviewedBy || null,
+                    reviewedAt: av.reviewedAt || null,
+                    createdAt: av.createdAt,
+                    updatedAt: av.updatedAt,
+                })),
+            },
             activity: {
                 transactions,
-                cashMovements, // includes deposits and withdrawals requests
-                tradeRequests, // includes buy/sell requests
+                cashMovements,
+                tradeRequests,
                 portfolioTransfers: {
                     sent: sentTransfers,
-                    received: receivedTransfers
-                }
+                    received: receivedTransfers,
+                },
             },
             assets: {
                 portfolios,
                 holdings,
-                pendingTrades: activity.tradeRequests.filter((r: any) => r.status === 'pending')
-            }
+                pendingTrades: tradeRequests.filter((r: any) => r.status === "pending"),
+            },
         }, 200, origin);
 
     } catch (error: any) {
