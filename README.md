@@ -218,6 +218,7 @@ Include the token in all subsequent requests:
 | GET | `/api/admin/trades` | Queue for buy/sell requests | Admin |
 | PUT | `/api/admin/trades/:id`| Execute or Reject stock trades | Admin |
 | PUT | `/api/admin/transfers/portfolio/:id`| Portfolio ownership transfer | Admin |
+| GET | `/api/admin/transfers/pending`| Queue for pending portfolio transfers | Admin |
 | GET | `/api/admin/kyc` | Queue for document verification | Admin |
 | GET | `/api/admin/kyc/:id` | Review specific user documents | Admin |
 | POST | `/api/admin/onboarding/approve`| **Final Approval** & Portfolio creation| Admin |
