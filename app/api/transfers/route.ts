@@ -32,6 +32,13 @@ export async function GET(request: NextRequest) {
     }
 }
 
+interface TransferAssetItem {
+    assetSymbol: string;
+    shares: number;
+    assetName?: string;
+    valueAtTransfer?: number;
+}
+
 // POST /api/transfers - Initiate a transfer
 export async function POST(request: NextRequest) {
     const origin = request.headers.get("origin");
@@ -44,13 +51,15 @@ export async function POST(request: NextRequest) {
         const { 
             portfolioId, 
             toUserEmail, 
-            assets: inputAssets = [], // Array of TransferAssetItem
+            assets,
             firstName,
             lastName,
             address,
             phone,
             description
         } = body;
+
+        const inputAssets: TransferAssetItem[] = assets || [];
 
         if (!portfolioId || !toUserEmail) {
             return corsResponse({ error: "portfolioId and toUserEmail are required." }, 400, origin);
