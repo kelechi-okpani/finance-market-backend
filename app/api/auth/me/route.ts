@@ -83,14 +83,25 @@ export async function GET(request: NextRequest) {
                         id: h._id.toString(),
                         assetId: h._id.toString(),
                         symbol: h.symbol,
-                        name: h.companyName,
+                        name: h.name || h.companyName,
+                        companyName: h.companyName,
                         sector: h.sector || "",
                         shares: h.shares,
                         avgPrice: h.avgBuyPrice,
                         currentPrice,
                         value,
-                        change,
-                        changePercent,
+                        change: live ? (value - cost) : (h.change || 0),
+                        changePercent: live ? (cost > 0 ? ((value - cost) / cost) * 100 : 0) : (h.changePercent || 0),
+                        
+                        // Market data parity fields
+                        market: h.market || "Unknown",
+                        volume: h.volume || "0",
+                        marketCap: h.marketCap || "0",
+                        peRatio: h.peRatio,
+                        dividend: h.dividend,
+                        marketTrend: h.marketTrend || "neutral",
+                        description: h.description || "",
+
                         purchaseDate: h.boughtAt?.toISOString().split("T")[0] || "",
                         portfolioType: p.name.includes("Growth") ? "Growth" :
                             p.name.includes("Retire") ? "Retirement" : "Aggressive",

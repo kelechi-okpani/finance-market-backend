@@ -62,6 +62,7 @@ User {
 Investment {
   id, assetId, symbol, name, sector, shares, avgPrice, currentPrice,
   value, change, changePercent, purchaseDate,
+  market, price, volume, marketCap, peRatio, dividend, marketTrend, description,
   portfolioType: "Growth" | "Retirement" | "Aggressive",
   performanceHistory: { date, value, gain }[]
 }
@@ -200,7 +201,7 @@ Include the token in all subsequent requests:
 | DELETE | `/api/cart/:id` | Remove item from cart | Approved |
 | POST | `/api/cart/checkout`| Submit cart for Admin approval | Approved |
 | POST | `/api/transfers/stock`| Transfer specific stock shares to email | Approved |
-| POST | `/api/transfers` | Initiate Portfolio Transfer using `TransferPayload` (ID), `assetSymbol`, `shares`, `toUserEmail`, `firstName`, `lastName`, `address`, `phone`, `description`. | Approved |
+| POST | `/api/transfers` | Initiate Portfolio Transfer using `portfolioId`, `TransferPayload`, `assetSymbol`, `shares`, `toUserEmail`, `firstName`, `lastName`, `address`, `phone`, `description`. | Approved |
 | GET | `/api/transfers` | List sent/received transfer history | Approved |
 
 ### ⚡ Admin & Control Center

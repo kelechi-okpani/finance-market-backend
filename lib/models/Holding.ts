@@ -5,11 +5,23 @@ export interface IHolding extends Document {
     portfolioId: mongoose.Types.ObjectId;
     userId: mongoose.Types.ObjectId;
     symbol: string;
-    companyName: string;
+    name: string; // was companyName
+    companyName: string; // maintain for compatibility
     sector?: string;
     shares: number;
     avgBuyPrice: number;
     targetReturn?: number;
+    // Market snapshotted fields
+    market?: string;
+    price?: number;
+    change?: number;
+    changePercent?: number;
+    volume?: string;
+    marketCap?: string;
+    peRatio?: number;
+    dividend?: number;
+    marketTrend?: "bullish" | "bearish" | "neutral";
+    description?: string;
     boughtAt: Date;
     createdAt: Date;
     updatedAt: Date;
@@ -40,6 +52,10 @@ const HoldingSchema = new Schema<IHolding>(
             required: true,
             trim: true,
         },
+        name: { // Add name field for stock parity
+            type: String,
+            trim: true,
+        },
         sector: {
             type: String,
             trim: true,
@@ -54,6 +70,17 @@ const HoldingSchema = new Schema<IHolding>(
             required: true,
             min: 0,
         },
+        // Snapshot fields
+        market: { type: String },
+        price: { type: Number },
+        change: { type: Number },
+        changePercent: { type: Number },
+        volume: { type: String },
+        marketCap: { type: String },
+        peRatio: { type: Number },
+        dividend: { type: Number },
+        marketTrend: { type: String, enum: ["bullish", "bearish", "neutral"] },
+        description: { type: String },
         targetReturn: {
             type: Number,
         },

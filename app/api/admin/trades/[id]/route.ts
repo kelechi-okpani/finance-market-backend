@@ -61,6 +61,9 @@ export async function PUT(
 
         // Approval Logic
         if (trade.type === "buy") {
+            const Stock = (await import("@/lib/models/Stock")).default;
+            const stockData = await Stock.findOne({ symbol: trade.symbol.toUpperCase() });
+
             const existing = await Holding.findOne({
                 userId: user._id,
                 portfolioId: trade.portfolioId,
@@ -73,6 +76,21 @@ export async function PUT(
                 existing.shares = newTotal;
                 existing.avgBuyPrice = newAvg;
                 existing.sector = trade.sector || existing.sector; // Update sector name if provided
+                
+                // Keep the rest of market context updated
+                if (stockData) {
+                    existing.price = stockData.price;
+                    existing.change = stockData.change;
+                    existing.changePercent = stockData.changePercent;
+                    existing.volume = stockData.volume;
+                    existing.marketCap = stockData.marketCap;
+                    existing.peRatio = stockData.peRatio;
+                    existing.dividend = stockData.dividend;
+                    existing.marketTrend = stockData.marketTrend;
+                    existing.description = stockData.description;
+                    existing.market = stockData.market;
+                    existing.name = stockData.name;
+                }
                 await existing.save();
             } else {
                 await Holding.create({
@@ -80,10 +98,22 @@ export async function PUT(
                     portfolioId: trade.portfolioId,
                     symbol: trade.symbol,
                     companyName: trade.companyName,
+                    name: stockData?.name || trade.companyName,
                     sector: trade.sector,
                     shares: trade.shares,
                     avgBuyPrice: trade.pricePerShare,
-                    boughtAt: new Date()
+                    boughtAt: new Date(),
+                    // Snapshotted market data
+                    market: stockData?.market,
+                    price: stockData?.price,
+                    change: stockData?.change,
+                    changePercent: stockData?.changePercent,
+                    volume: stockData?.volume,
+                    marketCap: stockData?.marketCap,
+                    peRatio: stockData?.peRatio,
+                    dividend: stockData?.dividend,
+                    marketTrend: stockData?.marketTrend,
+                    description: stockData?.description
                 });
             }
 

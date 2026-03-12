@@ -42,7 +42,8 @@ export async function POST(request: NextRequest) {
     try {
         const body = await request.json();
         const { 
-            TransferPayload, // used as portfolioId
+            portfolioId: bodyPortfolioId,
+            TransferPayload, // also used as portfolioId if bodyPortfolioId is missing
             assetSymbol, 
             shares, 
             toUserEmail, 
@@ -55,7 +56,7 @@ export async function POST(request: NextRequest) {
             description
         } = body;
 
-        const portfolioId = TransferPayload || body.portfolioId;
+        const portfolioId = bodyPortfolioId || TransferPayload;
         const recipientEmail = toUserEmail || body.recipientEmail;
 
         if (!portfolioId || !recipientEmail) {

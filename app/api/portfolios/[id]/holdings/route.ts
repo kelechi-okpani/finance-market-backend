@@ -49,6 +49,9 @@ export async function POST(
         // Check if user already has this symbol in this portfolio
         let holding = await Holding.findOne({ portfolioId, symbol: symbol.toUpperCase() });
 
+        const Stock = (await import("@/lib/models/Stock")).default;
+        const stockData = await Stock.findOne({ symbol: symbol.toUpperCase().trim() });
+
         if (holding) {
             // Average out the price and sum the shares
             const totalCost = (holding.shares * holding.avgBuyPrice) + (shares * avgBuyPrice);
@@ -57,6 +60,21 @@ export async function POST(
             holding.avgBuyPrice = totalCost / totalShares;
             holding.shares = totalShares;
             if (targetReturn !== undefined) holding.targetReturn = targetReturn;
+            
+            // Sync snapshot if possible
+            if (stockData) {
+                holding.name = stockData.name;
+                holding.price = stockData.price;
+                holding.change = stockData.change;
+                holding.changePercent = stockData.changePercent;
+                holding.volume = stockData.volume;
+                holding.marketCap = stockData.marketCap;
+                holding.peRatio = stockData.peRatio;
+                holding.dividend = stockData.dividend;
+                holding.marketTrend = stockData.marketTrend;
+                holding.description = stockData.description;
+                holding.market = stockData.market;
+            }
 
             await holding.save();
         } else {
@@ -66,9 +84,21 @@ export async function POST(
                 userId: auth.user!._id,
                 symbol: symbol.toUpperCase().trim(),
                 companyName: companyName.trim(),
+                name: stockData?.name || companyName.trim(),
                 shares,
                 avgBuyPrice,
                 targetReturn,
+                // Market snapshot
+                market: stockData?.market,
+                price: stockData?.price,
+                change: stockData?.change,
+                changePercent: stockData?.changePercent,
+                volume: stockData?.volume,
+                marketCap: stockData?.marketCap,
+                peRatio: stockData?.peRatio,
+                dividend: stockData?.dividend,
+                marketTrend: stockData?.marketTrend,
+                description: stockData?.description
             });
         }
 
