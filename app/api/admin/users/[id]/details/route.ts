@@ -130,10 +130,11 @@ export async function GET(
                 pendingTrades: tradeRequests.filter((r: any) => r.status === "pending"),
             },
             chat: chatHistory.map(msg => ({
-                id: msg._id,
+                id: msg._id.toString(),
                 sender: msg.sender,
                 text: msg.text,
-                timestamp: msg.createdAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+                timestamp: msg.createdAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+                conversationId: msg.conversationId || `conv_${msg.userId}`
             }))
         }, 200, origin);
 
