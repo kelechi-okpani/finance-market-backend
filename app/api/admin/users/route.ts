@@ -2,6 +2,8 @@ import { NextRequest } from "next/server";
 import connectDB from "@/lib/db";
 import User from "@/lib/models/User";
 import CashMovement from "@/lib/models/CashMovement";
+import TradeRequest from "@/lib/models/TradeRequest";
+import PortfolioTransfer from "@/lib/models/PortfolioTransfer";
 import mongoose from "mongoose";
 import { requireAdmin } from "@/lib/auth";
 import { corsResponse, corsOptionsResponse } from "@/lib/cors";
@@ -47,15 +49,19 @@ export async function GET(request: NextRequest) {
             User.countDocuments(filter),
         ]);
 
-        // Fetch transactions for each user
+        // Fetch transactions, trades, and transfers for each user
         const userIds = users.map(u => u._id);
-        const allTransactions = await CashMovement.find({
-            userId: { $in: userIds }
-        }).sort({ createdAt: -1 }).lean();
+        const [allTransactions, allTrades, allTransfers] = await Promise.all([
+            CashMovement.find({ userId: { $in: userIds } }).sort({ createdAt: -1 }).lean(),
+            TradeRequest.find({ userId: { $in: userIds } }).sort({ createdAt: -1 }).lean(),
+            PortfolioTransfer.find({ senderId: { $in: userIds } }).sort({ createdAt: -1 }).lean()
+        ]);
 
         const usersWithData = users.map(user => ({
             ...user,
-            transactions: (allTransactions as any[]).filter(t => t.userId.toString() === user._id.toString())
+            transactions: (allTransactions as any[]).filter(t => t.userId.toString() === user._id.toString()),
+            trades: (allTrades as any[]).filter(t => t.userId.toString() === user._id.toString()),
+            portfolioTransfers: (allTransfers as any[]).filter(t => t.senderId.toString() === user._id.toString())
         }));
 
         return corsResponse(
