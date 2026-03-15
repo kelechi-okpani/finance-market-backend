@@ -2,6 +2,8 @@ import { NextRequest } from "next/server";
 import connectDB from "@/lib/db";
 import Transaction from "@/lib/models/Transaction";
 import PaymentMethod from "@/lib/models/PaymentMethod";
+import CashMovement from "@/lib/models/CashMovement";
+import User from "@/lib/models/User";
 import { requireApproved } from "@/lib/auth";
 import { corsResponse, corsOptionsResponse } from "@/lib/cors";
 
@@ -19,7 +21,10 @@ export async function GET(request: NextRequest) {
     try {
         await connectDB();
 
-        const transactions = await Transaction.find({ userId: auth.user!._id });
+        const [transactions, pendingMovements] = await Promise.all([
+            Transaction.find({ userId: auth.user!._id }),
+            CashMovement.find({ userId: auth.user!._id, status: "pending" })
+        ]);
 
         const totalDeposits = transactions
             .filter(t => t.type === 'deposit')
@@ -43,6 +48,7 @@ export async function GET(request: NextRequest) {
             balance,
             totalDeposits,
             totalWithdrawals,
+            pending: pendingMovements,
             history: transactions.sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()).slice(0, 10)
         }, 200, origin);
     } catch (error) {
@@ -69,27 +75,33 @@ export async function POST(request: NextRequest) {
         await connectDB();
 
         // If withdrawal, check balance first
-        if (type === 'withdrawal') {
-            const transactions = await Transaction.find({ userId: auth.user!._id });
-            const currentBalance = transactions.reduce((sum, t) => {
-                if (t.type === 'deposit' || t.type === 'sell') return sum + t.amount;
-                return sum - t.amount;
-            }, 0);
+        const user = await User.findById(auth.user!._id);
+        if (!user) return corsResponse({ error: "User not found." }, 404, origin);
 
-            if (amount > currentBalance) {
-                return corsResponse({ error: "Insufficient balance for withdrawal." }, 400, origin);
-            }
+        if (type === 'withdrawal' && user.availableCash < amount) {
+            return corsResponse({ error: "Insufficient balance for withdrawal." }, 400, origin);
         }
 
-        const transaction = await Transaction.create({
+        const cashMovement = await CashMovement.create({
             userId: auth.user!._id,
             type,
             amount,
-            description,
-            referenceId: paymentMethodId
+            method: paymentMethodId || "manual",
+            status: "pending",
+            date: new Date().toISOString().split('T')[0],
         });
 
-        return corsResponse({ message: "Transaction completed successfully.", transaction }, 201, origin);
+        // For withdrawals, lock funds immediately
+        if (type === 'withdrawal') {
+            user.availableCash -= amount;
+            user.totalBalance -= amount;
+            await user.save();
+        }
+
+        return corsResponse({ 
+            message: "Transaction request submitted for Admin approval.", 
+            cashMovement 
+        }, 201, origin);
     } catch (error) {
         console.error("Funds transaction API error:", error);
         return corsResponse({ error: "Internal server error." }, 500, origin);

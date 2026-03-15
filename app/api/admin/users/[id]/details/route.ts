@@ -111,8 +111,10 @@ export async function GET(
             },
             activity: {
                 transactions,
-                cashMovements,
-                tradeRequests,
+                deposits: cashMovements.filter((m: any) => m.type === "deposit"),
+                withdrawals: cashMovements.filter((m: any) => m.type === "withdrawal"),
+                buys: tradeRequests.filter((r: any) => r.type === "buy"),
+                sells: tradeRequests.filter((r: any) => r.type === "sell"),
                 portfolioTransfers: {
                     sent: sentTransfers,
                     received: receivedTransfers,

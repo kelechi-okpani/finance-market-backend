@@ -53,18 +53,8 @@ export async function POST(request: NextRequest) {
             status: "pending"
         });
 
-        // 3. Create Transaction (ledger for the request)
-        const transaction = await Transaction.create({
-            userId: auth.user!._id,
-            type: 'sell',
-            amount: totalProceeds,
-            description: `Trade Request (Pending): Sell ${shares} shares of ${holding.symbol} at $${price}`,
-            referenceId: holding.symbol,
-        });
-
         return corsResponse({
             message: `Sell request for ${shares} shares of ${holding.symbol} submitted for Admin approval.`,
-            transaction,
             requestId: tradeReq._id
         }, 201, origin);
 

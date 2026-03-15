@@ -2,6 +2,9 @@ import { NextRequest } from "next/server";
 import connectDB from "@/lib/db";
 import Portfolio from "@/lib/models/Portfolio";
 import Holding from "@/lib/models/Holding";
+import TradeRequest from "@/lib/models/TradeRequest";
+import CashMovement from "@/lib/models/CashMovement";
+import PortfolioTransfer from "@/lib/models/PortfolioTransfer";
 import { requireAuth } from "@/lib/auth";
 import { corsResponse, corsOptionsResponse } from "@/lib/cors";
 import { getStockQuotes } from "@/lib/marketstack";
@@ -42,9 +45,12 @@ export async function GET(request: NextRequest) {
         }
 
         // IF APPROVED: Return full rich dashboard data
-        const [portfolios, holdings] = await Promise.all([
+        const [portfolios, holdings, pendingTrades, pendingCash, sentTransfers] = await Promise.all([
             Portfolio.find({ userId: auth.user!._id }),
-            Holding.find({ userId: auth.user!._id })
+            Holding.find({ userId: auth.user!._id }),
+            TradeRequest.find({ userId: auth.user!._id, status: "pending" }),
+            CashMovement.find({ userId: auth.user!._id, status: "pending" }),
+            PortfolioTransfer.find({ senderId: auth.user!._id, status: "pending" })
         ]);
 
         const symbols = Array.from(new Set(holdings.map(h => h.symbol)));
@@ -84,7 +90,12 @@ export async function GET(request: NextRequest) {
                     value: pValue,
                     change: pChange
                 };
-            })
+            }),
+            pending: {
+                trades: pendingTrades,
+                cash: pendingCash,
+                transfers: sentTransfers
+            }
         }, 200, origin);
     } catch (error) {
         console.error("Dashboard API error:", error);

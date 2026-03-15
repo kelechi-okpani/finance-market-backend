@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import connectDB from "@/lib/db";
 import CashMovement from "@/lib/models/CashMovement";
+import Transaction from "@/lib/models/Transaction";
 import User from "@/lib/models/User";
 import { requireAdmin } from "@/lib/auth";
 import { corsResponse, corsOptionsResponse } from "@/lib/cors";
@@ -45,12 +46,23 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
                 if (transaction.type === "deposit") {
                     user.totalBalance += transaction.amount;
                     user.availableCash += transaction.amount;
+
+                    await Transaction.create({
+                        userId: user._id,
+                        type: "deposit",
+                        amount: transaction.amount,
+                        description: `Deposit via ${transaction.method} (Approved)`,
+                        referenceId: transaction._id.toString()
+                    });
                 } else if (transaction.type === "withdrawal") {
-                    // Withdrawal amount is usually deducted on request, or here.
-                    // If deducted on request (pending), do nothing.
-                    // If not deducted on request, deduct now.
-                    // Conventional: Deduct on request, refund on failure.
-                    // Let's assume it was already deducted or validate balance.
+                    // Already deducted on request (locked)
+                    await Transaction.create({
+                        userId: user._id,
+                        type: "withdrawal",
+                        amount: transaction.amount,
+                        description: `Withdrawal via ${transaction.method} (Approved)`,
+                        referenceId: transaction._id.toString()
+                    });
                 }
                 await user.save();
             }
@@ -63,6 +75,14 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
                 if (transaction.type === "withdrawal") {
                     user.totalBalance += transaction.amount;
                     user.availableCash += transaction.amount;
+
+                    await Transaction.create({
+                        userId: user._id,
+                        type: "deposit",
+                        amount: transaction.amount,
+                        description: `Refund: Withdrawal ${status}`,
+                        referenceId: transaction._id.toString()
+                    });
 
                     if (status === "failed") {
                         user.failedWithdrawalAttempts += 1;

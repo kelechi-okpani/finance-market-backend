@@ -30,15 +30,7 @@ export async function POST(request: NextRequest) {
 
         await connectDB();
 
-        // 1. Create Transaction (ledger)
-        const transaction = await Transaction.create({
-            userId: auth.user!._id,
-            type: 'deposit',
-            amount,
-            description: description || `Deposit via ${method}`,
-        });
-
-        // 2. Create CashMovement (as a request for admin approval)
+        // 1. Create CashMovement (as a request for admin approval)
         const cashMovement = await CashMovement.create({
             userId: auth.user!._id,
             type: "deposit",
@@ -52,7 +44,6 @@ export async function POST(request: NextRequest) {
         return corsResponse({
             message: "Deposit request submitted for Admin approval.",
             cashMovement,
-            transaction
         }, 201, origin);
 
     } catch (error) {

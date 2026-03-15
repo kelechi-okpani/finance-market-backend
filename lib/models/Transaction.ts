@@ -3,7 +3,7 @@ import mongoose, { Schema, Document, Model } from "mongoose";
 export interface ITransaction extends Document {
     _id: mongoose.Types.ObjectId;
     userId: mongoose.Types.ObjectId;
-    type: 'deposit' | 'withdrawal' | 'buy' | 'sell';
+    type: 'deposit' | 'withdrawal' | 'buy' | 'sell' | 'transfer';
     amount: number;
     description?: string;
     referenceId?: string;

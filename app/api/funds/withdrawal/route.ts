@@ -42,22 +42,14 @@ export async function POST(request: NextRequest) {
             return corsResponse({ error: "Insufficient available cash for withdrawal." }, 400, origin);
         }
 
-        // 1. Create Transaction (ledger)
-        const transaction = await Transaction.create({
-            userId: auth.user!._id,
-            type: 'withdrawal',
-            amount,
-            description: description || `Withdrawal via ${method || (resettlementAccountId ? 'Resettlement Account' : 'Bank Transfer')}`,
-        });
-
-        // 2. Create CashMovement (for history/status tracking)
+        // 1. Create CashMovement (for history/status tracking)
         // Store bank details in description or metadata if model allows, for now using description
         let withdrawalNote = description || "";
         if (bankDetails) {
             withdrawalNote += ` [Bank: ${bankDetails.bankName}, Acc: ${bankDetails.accountNumber}]`;
         }
 
-        await CashMovement.create({
+        const cashMovement = await CashMovement.create({
             userId: auth.user!._id,
             type: "withdrawal",
             amount,
@@ -67,14 +59,14 @@ export async function POST(request: NextRequest) {
             date: new Date().toISOString().split('T')[0],
         });
 
-        // 3. Update User Balance
+        // 2. Update User Balance (Lock funds)
         user.totalBalance -= amount;
         user.availableCash -= amount;
         await user.save();
 
         return corsResponse({
-            message: "Withdrawal request submitted successfully.",
-            transaction
+            message: "Withdrawal request submitted for Admin approval. Funds have been locked.",
+            cashMovement
         }, 201, origin);
 
     } catch (error) {

@@ -19,7 +19,11 @@ export async function GET(request: NextRequest) {
     try {
         await connectDB();
 
-        const holdings = await Holding.find({ userId: auth.user!._id }).populate('portfolioId', 'name');
+        const TradeRequest = (await import("@/lib/models/TradeRequest")).default;
+        const [holdings, pendingTrades] = await Promise.all([
+            Holding.find({ userId: auth.user!._id }).populate('portfolioId', 'name'),
+            TradeRequest.find({ userId: auth.user!._id, status: "pending" })
+        ]);
 
         const symbols = Array.from(new Set(holdings.map(h => h.symbol)));
         let liveData = new Map();
@@ -53,6 +57,7 @@ export async function GET(request: NextRequest) {
 
         return corsResponse({
             holdings: holdingsWithLivePrice,
+            pendingTrades,
             summary: {
                 totalInvested,
                 totalValue,

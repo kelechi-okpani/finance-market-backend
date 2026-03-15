@@ -69,22 +69,12 @@ export async function POST(request: NextRequest) {
             status: "pending"
         });
 
-        // 4. Create Transaction (ledger for the request)
-        const transaction = await Transaction.create({
-            userId: user._id,
-            type: 'buy',
-            amount: totalCost,
-            description: `Trade Request (Pending): Buy ${shares} shares of ${symbol} at $${price}`,
-            referenceId: symbol,
-        });
-
-        // 5. Update User Balance (Deduct from available cash immediately)
+        // 4. Update User Balance (Deduct from available cash immediately to lock funds)
         user.availableCash -= totalCost;
         await user.save();
 
         return corsResponse({
-            message: `Trade request for ${shares} shares of ${symbol} submitted for Admin approval. $${totalCost} has been deducted from your wallet.`,
-            transaction,
+            message: `Trade request for ${shares} shares of ${symbol} submitted for Admin approval. $${totalCost} has been locked in your wallet.`,
             requestId: tradeReq._id,
             availableCash: user.availableCash
         }, 201, origin);

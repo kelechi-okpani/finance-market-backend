@@ -4,6 +4,7 @@ import PortfolioTransfer from "@/lib/models/PortfolioTransfer";
 import Portfolio from "@/lib/models/Portfolio";
 import Holding from "@/lib/models/Holding";
 import User from "@/lib/models/User";
+import Transaction from "@/lib/models/Transaction";
 import { requireAdmin } from "@/lib/auth";
 import { corsResponse, corsOptionsResponse } from "@/lib/cors";
 
@@ -150,6 +151,29 @@ export async function PUT(
         transfer.recipientId = recipient._id;
         transfer.resolvedAt = new Date();
         await transfer.save();
+
+        // 4. Create Transaction records for both parties for history visibility
+        try {
+            await Transaction.create([
+                {
+                    userId: transfer.senderId,
+                    type: 'transfer',
+                    amount: transfer.totalValue,
+                    description: `Sent Portfolio Transfer to ${recipient.email}: ${transfer.totalAssets} assets`,
+                    referenceId: transfer._id.toString()
+                },
+                {
+                    userId: recipient._id,
+                    type: 'transfer',
+                    amount: transfer.totalValue,
+                    description: `Received Portfolio Transfer from ${auth.user?.email || 'Admin'}: ${transfer.totalAssets} assets`,
+                    referenceId: transfer._id.toString()
+                }
+            ]);
+        } catch (txError) {
+            console.error("Failed to create transfer transactions:", txError);
+            // Non-blocking but logged
+        }
 
         return corsResponse({
             message: "Portfolio transfer approved and processed successfully.",
