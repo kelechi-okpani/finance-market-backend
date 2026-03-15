@@ -9,6 +9,7 @@ import TradeRequest from "@/lib/models/TradeRequest";
 import PortfolioTransfer from "@/lib/models/PortfolioTransfer";
 import KYCDocument from "@/lib/models/KYCDocument";
 import AddressVerification from "@/lib/models/AddressVerification";
+import ChatMessage from "@/lib/models/ChatMessage";
 import { requireAdmin } from "@/lib/auth";
 import { corsResponse, corsOptionsResponse } from "@/lib/cors";
 
@@ -40,7 +41,7 @@ export async function GET(
         }
 
         // Fetch all related data in parallel for the admin
-        const [
+                const [
             transactions,
             holdings,
             portfolios,
@@ -49,7 +50,8 @@ export async function GET(
             sentTransfers,
             receivedTransfers,
             kycDocuments,
-            addressVerifications
+            addressVerifications,
+            chatHistory
         ] = await Promise.all([
             Transaction.find({ userId: id }).sort({ createdAt: -1 }),
             Holding.find({ userId: id }).populate("portfolioId", "name"),
@@ -64,6 +66,8 @@ export async function GET(
             KYCDocument.find({ userId: id }).sort({ createdAt: -1 }),
             // ★ Actual address proof documents with real upload URLs
             AddressVerification.find({ userId: id }).sort({ createdAt: -1 }),
+            // Fetch Chat History
+            ChatMessage.find({ userId: id }).sort({ createdAt: 1 }),
         ]);
 
         return corsResponse({
@@ -125,6 +129,12 @@ export async function GET(
                 holdings,
                 pendingTrades: tradeRequests.filter((r: any) => r.status === "pending"),
             },
+            chat: chatHistory.map(msg => ({
+                id: msg._id,
+                sender: msg.sender,
+                text: msg.text,
+                timestamp: msg.createdAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+            }))
         }, 200, origin);
 
     } catch (error: any) {
