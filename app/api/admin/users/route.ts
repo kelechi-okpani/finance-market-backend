@@ -4,6 +4,7 @@ import User from "@/lib/models/User";
 import CashMovement from "@/lib/models/CashMovement";
 import TradeRequest from "@/lib/models/TradeRequest";
 import PortfolioTransfer from "@/lib/models/PortfolioTransfer";
+import StockTransfer from "@/lib/models/StockTransfer";
 import mongoose from "mongoose";
 import { requireAdmin } from "@/lib/auth";
 import { corsResponse, corsOptionsResponse } from "@/lib/cors";
@@ -51,18 +52,28 @@ export async function GET(request: NextRequest) {
 
         // Fetch transactions, trades, and transfers for each user
         const userIds = users.map(u => u._id);
-        const [allTransactions, allTrades, allTransfers] = await Promise.all([
+        const [allCashMovements, allTrades, allPortfolioTransfers, allStockTransfers] = await Promise.all([
             CashMovement.find({ userId: { $in: userIds } }).sort({ createdAt: -1 }).lean(),
             TradeRequest.find({ userId: { $in: userIds } }).sort({ createdAt: -1 }).lean(),
-            PortfolioTransfer.find({ senderId: { $in: userIds } }).sort({ createdAt: -1 }).lean()
+            PortfolioTransfer.find({ senderId: { $in: userIds } }).sort({ createdAt: -1 }).lean(),
+            StockTransfer.find({ userId: { $in: userIds } }).sort({ createdAt: -1 }).lean()
         ]);
 
-        const usersWithData = users.map(user => ({
-            ...user,
-            transactions: (allTransactions as any[]).filter(t => t.userId.toString() === user._id.toString()),
-            trades: (allTrades as any[]).filter(t => t.userId.toString() === user._id.toString()),
-            portfolioTransfers: (allTransfers as any[]).filter(t => t.senderId.toString() === user._id.toString())
-        }));
+        const usersWithData = users.map(user => {
+            const userCash = (allCashMovements as any[]).filter(t => t.userId.toString() === user._id.toString());
+            const userTrades = (allTrades as any[]).filter(t => t.userId.toString() === user._id.toString());
+            const userPortfolioTs = (allPortfolioTransfers as any[]).filter(t => t.senderId.toString() === user._id.toString());
+            const userStockTs = (allStockTransfers as any[]).filter(t => t.userId.toString() === user._id.toString());
+
+            return {
+                ...user,
+                deposits: userCash.filter(t => t.type === 'deposit'),
+                withdrawals: userCash.filter(t => t.type === 'withdrawal'),
+                buys: userTrades.filter(t => t.type === 'buy'),
+                sells: userTrades.filter(t => t.type === 'sell'),
+                transfers: [...userPortfolioTs, ...userStockTs]
+            };
+        });
 
         return corsResponse(
             {

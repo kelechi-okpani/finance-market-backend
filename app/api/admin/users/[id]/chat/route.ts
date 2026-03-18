@@ -29,8 +29,13 @@ export async function POST(
         const user = await User.findById(id);
         if (!user) return corsResponse({ error: "User not found." }, 404, origin);
 
+        // Find existing conversationId or create a new one
+        const lastMessage = await ChatMessage.findOne({ userId: id }).sort({ createdAt: -1 });
+        const conversationId = lastMessage?.conversationId || `conv_${id}`;
+
         const message = await ChatMessage.create({
             userId: id,
+            conversationId,
             sender: "admin",
             text
         });
