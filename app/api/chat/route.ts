@@ -23,13 +23,13 @@ export async function GET(request: NextRequest) {
             id: msg._id,
             sender: msg.sender,
             text: msg.text,
-            timestamp: msg.createdAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+            timestamp: msg.createdAt ? msg.createdAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : ""
         }));
 
         return corsResponse({ chatHistory: mappedMessages }, 200, origin);
-    } catch (error) {
+    } catch (error: any) {
         console.error("Fetch chat error:", error);
-        return corsResponse({ error: "Internal server error." }, 500, origin);
+        return corsResponse({ error: "Internal server error.", details: error.message }, 500, origin);
     }
 }
 
@@ -41,12 +41,25 @@ export async function POST(request: NextRequest) {
     if (auth.error) return auth.error;
 
     try {
-        const { text } = await request.json();
+        let body;
+        try {
+            body = await request.json();
+        } catch (e) {
+            return corsResponse({ error: "Invalid JSON body." }, 400, origin);
+        }
+
+        const { text } = body;
         if (!text) return corsResponse({ error: "Message text is required." }, 400, origin);
 
         await connectDB();
+        
+        // Find existing conversationId or create a new one based on user ID
+        const lastMessage = await ChatMessage.findOne({ userId: auth.user!._id }).sort({ createdAt: -1 });
+        const conversationId = lastMessage?.conversationId || `conv_${auth.user!._id}`;
+
         const message = await ChatMessage.create({
             userId: auth.user!._id,
+            conversationId,
             sender: "user",
             text
         });
@@ -57,11 +70,11 @@ export async function POST(request: NextRequest) {
                 id: message._id,
                 sender: message.sender,
                 text: message.text,
-                timestamp: message.createdAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })
+                timestamp: message.createdAt ? message.createdAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }) : ""
             } 
         }, 201, origin);
-    } catch (error) {
+    } catch (error: any) {
         console.error("Send chat message error:", error);
-        return corsResponse({ error: "Internal server error." }, 500, origin);
+        return corsResponse({ error: "Internal server error.", details: error.message }, 500, origin);
     }
 }

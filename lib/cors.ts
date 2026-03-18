@@ -28,7 +28,7 @@ export function corsHeaders(origin?: string | null) {
     return {
         "Access-Control-Allow-Origin": allowedOrigin || "*",
         "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With, Cache-Control",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With, Cache-Control, Accept",
         "Access-Control-Allow-Credentials": "true",
         "Access-Control-Max-Age": "86400",
     };
