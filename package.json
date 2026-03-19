@@ -10,11 +10,13 @@
     "create-user": "tsx scripts/create-user.ts"
   },
   "dependencies": {
+    "@types/nodemailer": "^7.0.11",
     "bcryptjs": "^3.0.3",
     "dotenv": "^17.3.1",
     "jsonwebtoken": "^9.0.3",
     "mongoose": "^9.2.1",
     "next": "16.1.6",
+    "nodemailer": "^8.0.3",
     "yahoo-finance2": "^3.13.2"
   },
   "devDependencies": {
