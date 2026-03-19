@@ -22,9 +22,6 @@ export async function getStockQuotes(symbols: string[]): Promise<Map<string, Sto
     }
 
     try {
-        // Suppress console notices from yahoo-finance2
-        yahooFinance.suppressNotices(['yahooSurvey']);
-
         // Fetch quotes in parallel
         const results = await Promise.allSettled(
             symbols.map(symbol => yahooFinance.quote(symbol))
@@ -33,7 +30,7 @@ export async function getStockQuotes(symbols: string[]): Promise<Map<string, Sto
         results.forEach((result, index) => {
             const symbol = symbols[index];
             if (result.status === 'fulfilled' && result.value) {
-                const quote = result.value;
+                const quote = result.value as any;
                 quotes.set(symbol.toUpperCase(), {
                     symbol: quote.symbol.toUpperCase(),
                     name: quote.shortName || quote.longName,
@@ -69,8 +66,8 @@ export async function searchStocks(query: string) {
     if (!query) return [];
 
     try {
-        const results = await yahooFinance.search(query);
-        return results.quotes.map(q => ({
+        const results: any = await yahooFinance.search(query);
+        return results.quotes.map((q: any) => ({
             symbol: q.symbol,
             name: q.shortname || q.longname,
             exchange: q.exchange,
