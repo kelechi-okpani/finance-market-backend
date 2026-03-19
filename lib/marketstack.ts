@@ -1,5 +1,4 @@
-const MARKETSTACK_API_KEY = process.env.MARKETSTACK_API_KEY;
-const BASE_URL = 'http://api.marketstack.com/v1';
+import yahooFinance from 'yahoo-finance2';
 
 export interface StockQuote {
     symbol: string;
@@ -13,41 +12,52 @@ export interface StockQuote {
 }
 
 /**
- * Fetch real-time or latest end-of-day data for a list of symbols
+ * Fetch real-time or latest end-of-day data for a list of symbols using Yahoo Finance
  */
 export async function getStockQuotes(symbols: string[]): Promise<Map<string, StockQuote>> {
-    if (!MARKETSTACK_API_KEY) {
-        console.warn("MARKETSTACK_API_KEY is not set. Returning mock data.");
-        return createMockQuotes(symbols);
+    const quotes = new Map<string, StockQuote>();
+
+    if (!symbols || symbols.length === 0) {
+        return quotes;
     }
 
     try {
-        const symbolsString = symbols.join(',');
-        const response = await fetch(
-            `${BASE_URL}/eod/latest?access_key=${MARKETSTACK_API_KEY}&symbols=${symbolsString}`
+        // Suppress console notices from yahoo-finance2
+        yahooFinance.suppressNotices(['yahooSurvey']);
+
+        // Fetch quotes in parallel
+        const results = await Promise.allSettled(
+            symbols.map(symbol => yahooFinance.quote(symbol))
         );
 
-        const result = await response.json();
-
-        if (!result.data) {
-            console.error("MarketStack Error:", result.error || "Unknown error");
-            return createMockQuotes(symbols);
-        }
-
-        const quotes = new Map<string, StockQuote>();
-
-        result.data.forEach((item: any) => {
-            quotes.set(item.symbol, {
-                symbol: item.symbol,
-                price: item.close,
-                // MarketStack free tier limited data, we'll supplement where possible
-                volume: item.volume,
-            });
+        results.forEach((result, index) => {
+            const symbol = symbols[index];
+            if (result.status === 'fulfilled' && result.value) {
+                const quote = result.value;
+                quotes.set(symbol.toUpperCase(), {
+                    symbol: quote.symbol.toUpperCase(),
+                    name: quote.shortName || quote.longName,
+                    price: quote.regularMarketPrice || quote.preMarketPrice || quote.postMarketPrice || 0,
+                    change: quote.regularMarketChange,
+                    change_percent: quote.regularMarketChangePercent,
+                    volume: quote.regularMarketVolume,
+                    market_cap: quote.marketCap,
+                    currency: quote.currency
+                });
+            } else {
+                console.error(`Failed to fetch Yahoo Finance quote for ${symbol}`);
+            }
         });
+
+        // Use mock data as fallback for any symbols that failed completely
+        if (quotes.size < symbols.length) {
+            const mockQuotes = createMockQuotes(symbols.filter(s => !quotes.has(s.toUpperCase())));
+            mockQuotes.forEach((value, key) => quotes.set(key, value));
+        }
 
         return quotes;
     } catch (error) {
-        console.error("Failed to fetch from MarketStack:", error);
+        console.error("Failed to fetch from Yahoo Finance:", error);
         return createMockQuotes(symbols);
     }
 }
@@ -56,22 +66,24 @@ export async function getStockQuotes(symbols: string[]): Promise<Map<string, Sto
  * Search for stocks by keyword
  */
 export async function searchStocks(query: string) {
-    if (!MARKETSTACK_API_KEY) return [];
+    if (!query) return [];
 
     try {
-        const response = await fetch(
-            `${BASE_URL}/tickers?access_key=${MARKETSTACK_API_KEY}&search=${encodeURIComponent(query)}&limit=10`
-        );
-        const result = await response.json();
-        return result.data || [];
+        const results = await yahooFinance.search(query);
+        return results.quotes.map(q => ({
+            symbol: q.symbol,
+            name: q.shortname || q.longname,
+            exchange: q.exchange,
+            type: q.quoteType
+        }));
     } catch (error) {
-        console.error("MarketStack search error:", error);
+        console.error("Yahoo Finance search error:", error);
         return [];
     }
 }
 
 /**
- * Fallback to mock data if API key is missing or fails (for development/demo)
+ * Fallback to mock data if API fails (for development/demo)
  */
 function createMockQuotes(symbols: string[]): Map<string, StockQuote> {
     const quotes = new Map<string, StockQuote>();
