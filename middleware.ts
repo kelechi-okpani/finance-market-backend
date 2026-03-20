@@ -24,10 +24,11 @@ export function middleware(request: NextRequest) {
     let allowedOrigin = ALLOWED_ORIGINS[0];
 
     if (origin) {
-      const isAllowed = ALLOWED_ORIGINS.includes(origin) ||
-        origin.endsWith('.vercel.app') ||
-        origin.startsWith('http://localhost:') ||
-        origin.startsWith('http://127.0.0.1:') ||
+      const isAllowed = 
+        ALLOWED_ORIGINS.includes(origin) ||
+        origin.includes('.vercel.app') ||
+        /localhost:\d+$/.test(origin) ||
+        /127\.0\.0\.1:\d+$/.test(origin) ||
         process.env.NODE_ENV === 'development';
 
       if (isAllowed) {
@@ -40,7 +41,7 @@ export function middleware(request: NextRequest) {
       headers: {
         'Access-Control-Allow-Origin': allowedOrigin || '*',
         'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With, Cache-Control, Accept',
+        'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With, Cache-Control, Accept, x-requested-with',
         'Access-Control-Allow-Credentials': 'true',
         'Access-Control-Max-Age': '86400',
       },
@@ -51,17 +52,18 @@ export function middleware(request: NextRequest) {
 
   // Add CORS headers to the response
   if (origin) {
-    const isAllowed = ALLOWED_ORIGINS.includes(origin) ||
-      origin.endsWith('.vercel.app') ||
-      origin.startsWith('http://localhost:') ||
-      origin.startsWith('http://127.0.0.1:') ||
-      process.env.NODE_ENV === 'development';
+    const isAllowed = 
+        ALLOWED_ORIGINS.includes(origin) ||
+        origin.includes('.vercel.app') ||
+        /localhost:\d+$/.test(origin) ||
+        /127\.0\.0\.1:\d+$/.test(origin) ||
+        process.env.NODE_ENV === 'development';
 
     if (isAllowed) {
       response.headers.set('Access-Control-Allow-Origin', origin);
       response.headers.set('Access-Control-Allow-Credentials', 'true');
       response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
-      response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Cache-Control, Accept');
+      response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Cache-Control, Accept, x-requested-with');
     }
   }
 

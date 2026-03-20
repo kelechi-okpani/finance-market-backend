@@ -20,8 +20,10 @@ export async function GET(request: NextRequest) {
 
     try {
         await connectDB();
-        // Guaranteed string match for the user's conversation 
-        const messages = await ChatMessage.find({ userId: auth.user!._id.toString() }).sort({ createdAt: 1 });
+        const mongoose = (await import("mongoose")).default;
+        
+        // Use the raw _id (ObjectId) directly from the model
+        const messages = await ChatMessage.find({ userId: auth.user!._id }).sort({ createdAt: 1 });
 
         const mappedMessages = messages.map(msg => ({
             id: msg._id.toString(),
@@ -71,16 +73,19 @@ export async function POST(request: NextRequest) {
             text
         });
 
+        const formattedMessage = {
+            id: message._id.toString(),
+            sender: message.sender,
+            text: message.text,
+            timestamp: message.createdAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
+            conversationId: message.conversationId
+        };
+
         return corsResponse({ 
             success: true,
-            message: "Message sent.", 
-            chatMessage: {
-                id: message._id.toString(),
-                sender: message.sender,
-                text: message.text,
-                timestamp: message.createdAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-                conversationId: message.conversationId
-            } 
+            message: "Message sent successfully.", 
+            data: formattedMessage,
+            chatMessage: formattedMessage
         }, 201, origin);
     } catch (error: any) {
         console.error("Send chat message error:", error);

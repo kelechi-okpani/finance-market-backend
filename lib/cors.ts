@@ -14,10 +14,12 @@ export function corsHeaders(origin?: string | null) {
     let allowedOrigin = ALLOWED_ORIGINS[0];
 
     if (origin) {
-        const isAllowed = ALLOWED_ORIGINS.includes(origin) ||
-            origin.endsWith(".vercel.app") ||
-            origin.startsWith("http://localhost:") ||
-            origin.startsWith("http://127.0.0.1:") ||
+        // More robust matching for local and Vercel environments
+        const isAllowed = 
+            ALLOWED_ORIGINS.includes(origin) ||
+            origin.includes(".vercel.app") ||
+            /localhost:\d+$/.test(origin) ||
+            /127\.0\.0\.1:\d+$/.test(origin) ||
             process.env.NODE_ENV === "development";
 
         if (isAllowed) {
@@ -26,9 +28,9 @@ export function corsHeaders(origin?: string | null) {
     }
 
     return {
-        "Access-Control-Allow-Origin": allowedOrigin || "*",
+        "Access-Control-Allow-Origin": allowedOrigin,
         "Access-Control-Allow-Methods": "GET, POST, PUT, DELETE, PATCH, OPTIONS",
-        "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With, Cache-Control, Accept",
+        "Access-Control-Allow-Headers": "Content-Type, Authorization, X-Requested-With, Cache-Control, Accept, x-requested-with",
         "Access-Control-Allow-Credentials": "true",
         "Access-Control-Max-Age": "86400",
     };
