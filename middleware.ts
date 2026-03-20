@@ -13,61 +13,16 @@ const ALLOWED_ORIGINS = [
 
 export function middleware(request: NextRequest) {
   const origin = request.headers.get('origin');
-  const isApiRequest = request.nextUrl.pathname.startsWith('/api');
+  const path = request.nextUrl.pathname;
 
-  if (!isApiRequest) {
+  // Only handle API routes
+  if (!path.startsWith('/api')) {
     return NextResponse.next();
   }
 
-  // Handle preflight
-  if (request.method === 'OPTIONS') {
-    let allowedOrigin = ALLOWED_ORIGINS[0];
-
-    if (origin) {
-      const isAllowed = 
-        ALLOWED_ORIGINS.includes(origin) ||
-        origin.includes('.vercel.app') ||
-        /localhost:\d+$/.test(origin) ||
-        /127\.0\.0\.1:\d+$/.test(origin) ||
-        process.env.NODE_ENV === 'development';
-
-      if (isAllowed) {
-        allowedOrigin = origin;
-      }
-    }
-
-    return new NextResponse(null, {
-      status: 204,
-      headers: {
-        'Access-Control-Allow-Origin': allowedOrigin || '*',
-        'Access-Control-Allow-Methods': 'GET, POST, PUT, DELETE, PATCH, OPTIONS',
-        'Access-Control-Allow-Headers': 'Content-Type, Authorization, X-Requested-With, Cache-Control, Accept, x-requested-with',
-        'Access-Control-Allow-Credentials': 'true',
-        'Access-Control-Max-Age': '86400',
-      },
-    });
-  }
-
-  const response = NextResponse.next();
-
-  // Add CORS headers to the response
-  if (origin) {
-    const isAllowed = 
-        ALLOWED_ORIGINS.includes(origin) ||
-        origin.includes('.vercel.app') ||
-        /localhost:\d+$/.test(origin) ||
-        /127\.0\.0\.1:\d+$/.test(origin) ||
-        process.env.NODE_ENV === 'development';
-
-    if (isAllowed) {
-      response.headers.set('Access-Control-Allow-Origin', origin);
-      response.headers.set('Access-Control-Allow-Credentials', 'true');
-      response.headers.set('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
-      response.headers.set('Access-Control-Allow-Headers', 'Content-Type, Authorization, X-Requested-With, Cache-Control, Accept, x-requested-with');
-    }
-  }
-
-  return response;
+  // Let individual routes handle OPTIONS and CORS
+  // The middleware shouldn't intercept and return early if we want consistency
+  return NextResponse.next();
 }
 
 export const config = {

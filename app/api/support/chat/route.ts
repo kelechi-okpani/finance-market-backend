@@ -20,7 +20,14 @@ export async function GET(request: NextRequest) {
 
     try {
         await connectDB();
-        const messages = await ChatMessage.find({ userId: auth.user!._id }).sort({ createdAt: 1 });
+        
+        // Search by both ObjectId and String to ensure compatibility
+        const messages = await ChatMessage.find({ 
+            $or: [
+                { userId: auth.user!._id },
+                { userId: auth.user!._id.toString() }
+            ]
+        }).sort({ createdAt: 1 });
 
         const history = messages.map(msg => ({
             id: msg._id.toString(),

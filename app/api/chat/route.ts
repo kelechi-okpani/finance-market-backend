@@ -20,10 +20,14 @@ export async function GET(request: NextRequest) {
 
     try {
         await connectDB();
-        const mongoose = (await import("mongoose")).default;
         
-        // Use the raw _id (ObjectId) directly from the model
-        const messages = await ChatMessage.find({ userId: auth.user!._id }).sort({ createdAt: 1 });
+        // Search by both ObjectId and String to ensure compatibility
+        const messages = await ChatMessage.find({ 
+            $or: [
+                { userId: auth.user!._id },
+                { userId: auth.user!._id.toString() }
+            ]
+        }).sort({ createdAt: 1 });
 
         const mappedMessages = messages.map(msg => ({
             id: msg._id.toString(),
