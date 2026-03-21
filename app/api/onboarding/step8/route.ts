@@ -3,6 +3,7 @@ import connectDB from "@/lib/db";
 import KYCDocument from "@/lib/models/KYCDocument";
 import OnboardingProgress from "@/lib/models/OnboardingProgress";
 import { requireAuth } from "@/lib/auth";
+import { uploadToCloudinary } from "@/lib/cloudinary";
 import { corsResponse, corsOptionsResponse } from "@/lib/cors";
 
 export async function OPTIONS(request: NextRequest) {
@@ -29,13 +30,19 @@ export async function POST(request: NextRequest) {
 
         await connectDB();
 
-        // Save or update KYC document
+        // 1. Upload documents to Cloudinary
+        const [frontUrl, backUrl] = await Promise.all([
+            uploadToCloudinary(frontPageUrl, "onboarding/identity/front"),
+            uploadToCloudinary(backPageUrl, "onboarding/identity/back")
+        ]);
+
+        // 2. Save or update KYC document
         const kycDoc = await KYCDocument.findOneAndUpdate(
             { userId: auth.user!._id },
             {
                 documentType,
-                frontPageUrl,
-                backPageUrl,
+                frontPageUrl: frontUrl,
+                backPageUrl: backUrl,
                 status: "pending"
             },
             { upsert: true, new: true }

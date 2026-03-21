@@ -3,6 +3,7 @@ import connectDB from "@/lib/db";
 import User from "@/lib/models/User";
 import OnboardingProgress from "@/lib/models/OnboardingProgress";
 import { requireAuth } from "@/lib/auth";
+import { uploadToCloudinary } from "@/lib/cloudinary";
 import { corsResponse, corsOptionsResponse } from "@/lib/cors";
 
 export async function OPTIONS(request: NextRequest) {
@@ -29,6 +30,11 @@ export async function POST(request: NextRequest) {
 
         await connectDB();
 
+        // 1. Upload signature to Cloudinary
+        const cloudinaryUrl = await uploadToCloudinary(signatureUrl, "onboarding/signatures");
+
+        // 2. Update User
+
         // Update User
         await User.findByIdAndUpdate(auth.user!._id, {
             agreementSigned: true,
@@ -44,7 +50,7 @@ export async function POST(request: NextRequest) {
                     currentStep: 15,
                     "data.agreementSigned": true,
                     "data.signatureType": signatureType,
-                    "data.signatureUrl": signatureUrl
+                    "data.signatureUrl": cloudinaryUrl
                 }
             },
             { upsert: true }

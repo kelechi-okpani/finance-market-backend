@@ -3,6 +3,7 @@ import connectDB from "@/lib/db";
 import User from "@/lib/models/User";
 import OnboardingProgress from "@/lib/models/OnboardingProgress";
 import { requireAuth } from "@/lib/auth";
+import { uploadToCloudinary } from "@/lib/cloudinary";
 import { corsResponse, corsOptionsResponse } from "@/lib/cors";
 
 export async function OPTIONS(request: NextRequest) {
@@ -29,9 +30,12 @@ export async function POST(request: NextRequest) {
 
         await connectDB();
 
-        // Mark onboarding as complete on user
+        // 1. Upload to Cloudinary
+        const cloudinaryUrl = await uploadToCloudinary(headshotUrl, "onboarding/selfie");
+
+        // 2. Mark onboarding as complete on user
         await User.findByIdAndUpdate(auth.user!._id, {
-            headshotUrl,
+            headshotUrl: cloudinaryUrl,
             status: "pending", // Now waiting for admin review
             onboardingStep: 16 // 16 means fully completed onboarding
         });
@@ -43,7 +47,7 @@ export async function POST(request: NextRequest) {
                 $addToSet: { completedSteps: 15 },
                 $set: {
                     currentStep: 16,
-                    "data.headshotUrl": headshotUrl
+                    "data.headshotUrl": cloudinaryUrl
                 }
             },
             { upsert: true }

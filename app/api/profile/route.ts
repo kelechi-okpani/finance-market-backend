@@ -1,5 +1,6 @@
 import { NextRequest } from "next/server";
 import { requireAuth, hashPassword } from "@/lib/auth";
+import { uploadToCloudinary } from "@/lib/cloudinary";
 import { corsResponse, corsOptionsResponse } from "@/lib/cors";
 
 export async function OPTIONS(request: NextRequest) {
@@ -24,13 +25,18 @@ export async function PUT(request: NextRequest) {
     if (auth.error) return auth.error;
 
     try {
-        const body = await request.json();
-        const { firstName, lastName, phone } = body;
-
         const user = auth.user!;
+        const body = await request.json();
+        const { firstName, lastName, phone, avatar } = body;
+
         if (firstName) user.firstName = firstName.trim();
         if (lastName) user.lastName = lastName.trim();
         if (phone !== undefined) user.phone = phone.trim();
+
+        // Handle avatar upload if provided
+        if (avatar) {
+            user.avatar = await uploadToCloudinary(avatar, "profiles/avatars");
+        }
 
         await user.save();
 

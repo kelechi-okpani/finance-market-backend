@@ -3,6 +3,7 @@ import connectDB from "@/lib/db";
 import AddressVerification from "@/lib/models/AddressVerification";
 import OnboardingProgress from "@/lib/models/OnboardingProgress";
 import { requireAuth } from "@/lib/auth";
+import { uploadToCloudinary } from "@/lib/cloudinary";
 import { corsResponse, corsOptionsResponse } from "@/lib/cors";
 
 export async function OPTIONS(request: NextRequest) {
@@ -32,12 +33,15 @@ export async function POST(request: NextRequest) {
 
         await connectDB();
 
-        // Save or update Address Verification
+        // 1. Upload proof of address to Cloudinary
+        const cloudinaryUrl = await uploadToCloudinary(poaDocumentUrl, "onboarding/address");
+
+        // 2. Save or update Address Verification
         const address = await AddressVerification.findOneAndUpdate(
             { userId: auth.user!._id },
             {
                 houseNumber, streetAddress, city, stateProvince, zipCode, country,
-                poaDocumentType, poaDocumentUrl,
+                poaDocumentType, poaDocumentUrl: cloudinaryUrl,
                 status: "pending"
             },
             { upsert: true, new: true }
