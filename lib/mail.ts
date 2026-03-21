@@ -91,3 +91,37 @@ export async function sendPasswordResetEmail(email: string, token: string) {
         return { success: false, error };
     }
 }
+
+export async function sendOTPEmail(email: string, otp: string) {
+    const mailOptions = {
+        from: DEFAULT_FROM,
+        to: email,
+        subject: 'Verify Your Email — VaultStock',
+        html: `
+            <div style="font-family: sans-serif; max-width: 600px; margin: auto;">
+                <h2>Email Verification</h2>
+                <p>Use the following One-Time Password (OTP) to verify your email address. This code will expire in 10 minutes.</p>
+                <div style="font-size: 32px; font-weight: bold; padding: 20px; background: #f4f4f4; text-align: center; border-radius: 10px; color: #0070f3; letter-spacing: 5px;">
+                    ${otp}
+                </div>
+                <p>If you did not request this code, please ignore this email.</p>
+            </div>
+        `,
+    };
+
+    try {
+        if (!process.env.SMTP_HOST) {
+            console.log("-----------------------------------------");
+            console.log(`[SIMULATION] OTP Email to: ${email}`);
+            console.log(`OTP: ${otp}`);
+            console.log("-----------------------------------------");
+            return { success: true, message: "Simulation successful." };
+        }
+
+        await transporter.sendMail(mailOptions);
+        return { success: true };
+    } catch (error) {
+        console.error("Mail Send Error (OTP):", error);
+        return { success: false, error };
+    }
+}

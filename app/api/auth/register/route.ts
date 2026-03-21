@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import connectDB from "@/lib/db";
 import AccountRequest from "@/lib/models/AccountRequest";
 import User from "@/lib/models/User";
+import { sendKYCLinkEmail } from "@/lib/mail";
 import { corsResponse, corsOptionsResponse } from "@/lib/cors";
 
 // Handle CORS preflight
@@ -71,6 +72,9 @@ export async function POST(request: NextRequest) {
             phone: phone?.trim(),
             message: message?.trim(),
         });
+
+        // Send onboarding link email immediately as requested
+        await sendKYCLinkEmail(accountRequest.email, accountRequest.firstName);
 
         return corsResponse(
             {

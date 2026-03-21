@@ -45,9 +45,10 @@ export async function PUT(
             );
         }
 
-        if (accountRequest.status !== "pending") {
+        // Allow toggling between approved and rejected states
+        if (accountRequest.status === action) {
             return corsResponse(
-                { error: `This request has already been ${accountRequest.status}.` },
+                { error: `This request is already ${action}.` },
                 400,
                 origin
             );
@@ -57,16 +58,25 @@ export async function PUT(
             // Password is now optional because users set it during KYC
             const passwordHash = password ? await hashPassword(password) : undefined;
 
-            // Create user account
-            const user = await User.create({
-                firstName: accountRequest.firstName,
-                lastName: accountRequest.lastName,
-                email: accountRequest.email,
-                passwordHash,
-                role: "user",
-                status: "approved",
-                accountStatus: "pending", // Initially pending review
-            });
+            let user = await User.findOne({ email: accountRequest.email });
+
+            if (!user) {
+                // Create user account if not exists
+                user = await User.create({
+                    firstName: accountRequest.firstName,
+                    lastName: accountRequest.lastName,
+                    email: accountRequest.email,
+                    passwordHash,
+                    role: "user",
+                    status: "approved",
+                    accountStatus: "pending", // Initially pending review
+                });
+            } else {
+                // Update existing user status
+                user.status = "approved";
+                user.accountStatus = "pending";
+                await user.save();
+            }
 
             // Update request status
             accountRequest.status = "approved";
@@ -78,7 +88,7 @@ export async function PUT(
 
             return corsResponse(
                 {
-                    message: "Account request approved. User account created and KYC link sent.",
+                    message: "Account request approved. User account active and KYC link sent.",
                     notification: "KYC onboarding link has been sent to the user.",
                     user: {
                         id: user._id,
@@ -92,13 +102,19 @@ export async function PUT(
                 origin
             );
         } else {
-            // Reject
+            // Reject - update request AND user if exists
             accountRequest.status = "rejected";
             accountRequest.reviewedBy = auth.user!._id;
             await accountRequest.save();
 
+            // Also update user status to rejected if they exist
+            await User.findOneAndUpdate(
+                { email: accountRequest.email },
+                { status: "rejected", accountStatus: "rejected" }
+            );
+
             return corsResponse(
-                { message: "Account request rejected." },
+                { message: "Account request and associated user account (if any) rejected." },
                 200,
                 origin
             );
