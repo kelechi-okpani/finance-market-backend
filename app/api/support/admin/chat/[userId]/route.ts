@@ -25,14 +25,22 @@ export async function GET(
         const { userId } = await params;
         await connectDB();
         
-        const messages = await ChatMessage.find({ userId }).sort({ createdAt: 1 });
+        const convoId = `conv_${userId}`;
+
+        // Admin searches by both ID and conversationId for robustness
+        const messages = await ChatMessage.find({ 
+            $or: [
+                { userId: userId },
+                { conversationId: convoId }
+            ]
+        }).sort({ createdAt: 1 });
 
         const history = messages.map(msg => ({
             id: msg._id.toString(),
             sender: msg.sender,
             text: msg.text,
             timestamp: msg.createdAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-            conversationId: msg.conversationId
+            conversationId: msg.conversationId || convoId
         }));
 
         return corsResponse({

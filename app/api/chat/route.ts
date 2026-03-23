@@ -21,11 +21,16 @@ export async function GET(request: NextRequest) {
     try {
         await connectDB();
         
-        // Search by both ObjectId and String to ensure compatibility
+        const userId = auth.user!._id;
+        const userIdStr = userId.toString();
+        const convoId = `conv_${userIdStr}`;
+
+        // Search by both ID types and Conversation ID for maximum compatibility
         const messages = await ChatMessage.find({ 
             $or: [
-                { userId: auth.user!._id },
-                { userId: auth.user!._id.toString() }
+                { userId: userId },
+                { userId: userIdStr },
+                { conversationId: convoId }
             ]
         }).sort({ createdAt: 1 });
 
@@ -34,7 +39,7 @@ export async function GET(request: NextRequest) {
             sender: msg.sender,
             text: msg.text,
             timestamp: msg.createdAt.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' }),
-            conversationId: msg.conversationId || `conv_${msg.userId}`
+            conversationId: msg.conversationId || convoId
         }));
 
         // Returning the data in the exact format your frontend is expecting
