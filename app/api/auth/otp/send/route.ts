@@ -36,7 +36,11 @@ export async function POST(request: NextRequest) {
         const mailResult = await sendOTPEmail(email, otpCode);
 
         if (!mailResult.success) {
-            return corsResponse({ error: "Failed to send OTP email." }, 500, origin);
+            return corsResponse({ 
+                error: "Failed to send OTP email.",
+                details: (mailResult.error as any)?.message || "Check SMTP configuration on Vercel.",
+                simulatedOTP: otpCode // For debugging, allows continuing without working email
+            }, 500, origin);
         }
 
         return corsResponse(
