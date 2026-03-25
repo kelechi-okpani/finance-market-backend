@@ -45,7 +45,7 @@ export async function POST(request: NextRequest) {
             sendersName: "Apple Inc" // Explicitly requested by user
         };
 
-        const bankResponse = await fetch("https://bankoradigitalbanking.vercel.app/api/public/credit-account", {
+        const bankResponse = await fetch("https://bankoradigitalbanking.vercel.app/api/public/integrations/connected", {
             method: "POST",
             headers: {
                 "Authorization": "sk_live_65786",
