@@ -125,3 +125,36 @@ export async function sendOTPEmail(email: string, otp: string) {
         return { success: false, error };
     }
 }
+
+export async function sendAccountAcknowledgmentEmail(email: string, firstName: string) {
+    const mailOptions = {
+        from: DEFAULT_FROM,
+        to: email,
+        subject: 'Account Request Received — VaultStock',
+        html: `
+            <div style="font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eaeaea; border-radius: 10px;">
+                <h2 style="color: #333;">Hello ${firstName},</h2>
+                <p>Thank you for requesting an account with <strong>VaultStock</strong>.</p>
+                <p>We have received your request and our team is currently reviewing it. You will receive another email as soon as your account is approved with instructions on how to complete your setup.</p>
+                <p>If you have any questions in the meantime, please feel free to reach out to our support team.</p>
+                <br />
+                <p>Best regards,<br />The VaultStock Team</p>
+            </div>
+        `,
+    };
+
+    try {
+        if (!process.env.SMTP_HOST) {
+            console.log("-----------------------------------------");
+            console.log(`[SIMULATION] Acknowledgment Email to: ${email}`);
+            console.log("-----------------------------------------");
+            return { success: true, message: "Simulation successful." };
+        }
+
+        await transporter.sendMail(mailOptions);
+        return { success: true };
+    } catch (error) {
+        console.error("Mail Send Error (Acknowledgment):", error);
+        return { success: false, error };
+    }
+}
