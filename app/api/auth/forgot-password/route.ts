@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import connectDB from "@/lib/db";
 import User from "@/lib/models/User";
+import AccountRequest from "@/lib/models/AccountRequest";
 import { corsResponse, corsOptionsResponse } from "@/lib/cors";
 import { sendPasswordResetEmail } from "@/lib/mail";
 import crypto from "crypto";
@@ -25,12 +26,27 @@ export async function POST(request: NextRequest) {
 
         await connectDB();
 
-        const user = await User.findOne({ email: email.toLowerCase().trim() });
+        const emailLower = email.toLowerCase().trim();
 
-        // Security best practice: Don't reveal if user exists.
-        // But for this demo/app, we'll return success regardless.
+        // 1. Check if they have a pending account request
+        const accountReq = await AccountRequest.findOne({ email: emailLower });
+        if (accountReq && accountReq.status !== "approved") {
+            return corsResponse({ 
+                message: `Your account request is currently ${accountReq.status}. You will be able to set your password once it is approved.`,
+                status: accountReq.status
+            }, 200, origin);
+        }
+
+        // 2. Look for existing approved user
+        const user = await User.findOne({ email: emailLower });
+
+        // Security best practice: Don't reveal if user exists in production.
+        // But for this demo/app, we'll return a helpful message if not found.
         if (!user) {
-            return corsResponse({ message: "If an account with that email exists, we have sent a reset link." }, 200, origin);
+            return corsResponse({ 
+                message: "No approved account was found with that email address.",
+                details: accountReq ? "An account request exists but hasn't been fully activated into a user yet." : "No record found."
+            }, 200, origin);
         }
 
         // Generate a random token
@@ -41,10 +57,23 @@ export async function POST(request: NextRequest) {
         user.resetPasswordExpires = resetExpires;
         await user.save();
 
-        // Send the email (simulated)
-        await sendPasswordResetEmail(user.email, resetToken);
+        // Send the email
+        const mailResult = await sendPasswordResetEmail(user.email, resetToken);
 
-        return corsResponse({ message: "If an account with that email exists, we have sent a reset link." }, 200, origin);
+        if (!mailResult.success) {
+            return corsResponse({ 
+                error: "Failed to send reset email.",
+                details: (mailResult.error as any)?.message || "Check SMTP configuration on the server.",
+                developerNote: "If testing locally, unset SMTP_HOST to use simulation mode.",
+            }, 500, origin);
+        }
+
+        const isSimulated = mailResult.message === "Simulation successful.";
+
+        return corsResponse({ 
+            message: "If an account with that email exists, we have sent a reset link.",
+            ...(isSimulated && { dev_simulated_token: resetToken })
+        }, 200, origin);
 
     } catch (err: any) {
         console.error("Forgot password error:", err);

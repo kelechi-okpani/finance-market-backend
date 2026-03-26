@@ -43,8 +43,13 @@ export async function POST(request: NextRequest) {
             }, 500, origin);
         }
 
+        const isSimulated = mailResult.message === "Simulation successful.";
+        
         return corsResponse(
-            { message: "OTP sent successfully to " + email },
+            { 
+                message: "OTP sent successfully to " + email,
+                ...(isSimulated && { dev_simulated_otp: otpCode })
+            },
             200,
             origin
         );

@@ -15,7 +15,7 @@ const transporter = nodemailer.createTransport({
     },
 });
 
-const DEFAULT_FROM = process.env.SMTP_FROM || '"VaultStock" <no-reply@vaultstock.io>';
+const DEFAULT_FROM = process.env.SMTP_FROM || process.env.SMTP_USER || '"VaultStock" <no-reply@vaultstock.io>';
 
 export async function sendKYCLinkEmail(email: string, firstName: string) {
     const frontendUrl = process.env.FRONTEND_URL || "https://stock-portfolio-ruby-five.vercel.app";
@@ -62,15 +62,19 @@ export async function sendPasswordResetEmail(email: string, token: string) {
         from: DEFAULT_FROM,
         to: email,
         subject: 'Reset Your VaultStock Password',
+        text: `You requested a password reset for your VaultStock account. Please use the following link to set a new password: ${resetLink}. This link will expire in 1 hour.`,
         html: `
-            <div style="font-family: sans-serif; max-width: 600px; margin: auto;">
-                <h2>Reset Your Password</h2>
+            <div style="font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eaeaea; border-radius: 10px;">
+                <h2 style="color: #333;">Reset Your Password</h2>
                 <p>You requested a password reset for your VaultStock account.</p>
                 <p>Click the button below to set a new password:</p>
-                <a href="${resetLink}" style="display: block; width: fit-content; padding: 10px 20px; background: #0070f3; color: white; text-decoration: none; border-radius: 5px;">Reset Password</a>
-                <p>This link will expire in 1 hour.</p>
-                <p>If you did not request this, please ignore this email.</p>
-                <p>If the button doesn't work, copy and paste this link: <br> ${resetLink}</p>
+                <div style="margin: 20px 0;">
+                    <a href="${resetLink}" style="display: inline-block; padding: 12px 24px; background-color: #0070f3; color: #ffffff; text-decoration: none; border-radius: 5px; font-weight: bold;">Reset Password</a>
+                </div>
+                <p style="color: #666; font-size: 14px;">This link will expire in 1 hour. If you did not request this, please ignore this email.</p>
+                <hr style="border: 0; border-top: 1px solid #eaeaea; margin: 20px 0;" />
+                <p style="color: #888; font-size: 12px;">If the button doesn't work, copy and paste this link into your browser:<br />
+                <span style="color: #0070f3;">${resetLink}</span></p>
             </div>
         `,
     };
