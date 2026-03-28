@@ -39,7 +39,39 @@ export async function POST(request: NextRequest) {
 
         await connectDB();
 
-        // Create a new settlement account (allowing multiple per user)
+        // --- Step: Bankora Verification ---
+        // As per requirements: "should only accept valid account number that has been created from bank ora"
+        // We'll call the Bankora API to check if this account exists.
+        try {
+            const bankoraVerifyResponse = await fetch("https://bankoradigitalbanking.vercel.app/api/public/integrations/verify-account", {
+                method: "POST",
+                headers: {
+                    "Authorization": "sk_live_65786",
+                    "Content-Type": "application/json"
+                },
+                body: JSON.stringify({
+                    accountNumber,
+                    accountName,
+                    bankName
+                })
+            });
+
+            const bankoraData = await bankoraVerifyResponse.json();
+
+            if (!bankoraVerifyResponse.ok || !bankoraData.success) {
+                return corsResponse({ 
+                    error: "Unable to find this account in Bankora. Please ensure you have created your resettlement account correctly in the Bankora system.",
+                    details: bankoraData.message || "Account not found."
+                }, 400, origin);
+            }
+        } catch (fetchError) {
+            console.error("Bankora Verification Request Failed:", fetchError);
+            // If the verification API is down, we fallback to a developer-friendly error or still block if strict
+            return corsResponse({ error: "Bankora verification service is currently unavailable. Please try again later." }, 503, origin);
+        }
+
+        // --- Step: Create Settlement Account record ---
+        // Create a new settlement account (validated by Bankora, so we mark it as verified)
         const account = await SettlementAccount.create({
             userId: auth.user!._id,
             accountName,
@@ -50,11 +82,12 @@ export async function POST(request: NextRequest) {
             iban,
             swiftBic,
             currency: currency || "USD",
-            status: "pending_verification"
+            status: "verified" // Validated by Bankora, so it's ready for use
         });
 
         return corsResponse({
-            message: "Resettlement account added successfully and is pending verification.",
+            success: true,
+            message: "Resettlement account added successfully and verified through Bankora.",
             account
         }, 201, origin);
 

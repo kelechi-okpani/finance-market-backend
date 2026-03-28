@@ -23,15 +23,11 @@ export async function POST(request: NextRequest) {
 
     try {
         const body = await request.json();
-        const { amount, settlementAccountId, narration } = body;
+        const { amount, settlementAccountId, accountNumber, bankName, narration } = body;
 
         // Validation
         if (!amount || amount <= 0) {
             return corsResponse({ error: "Valid amount is required." }, 400, origin);
-        }
-
-        if (!settlementAccountId) {
-            return corsResponse({ error: "A verified settlement account ID is required." }, 400, origin);
         }
 
         await connectDB();
@@ -49,24 +45,43 @@ export async function POST(request: NextRequest) {
             }, 403, origin);
         }
 
-        if (user.availableCash < amount) {
-            return corsResponse({ error: "Insufficient available cash for withdrawal." }, 400, origin);
-        }
-
-        // Verify Settlement Account
-        const settlementAccount = await SettlementAccount.findOne({
-            _id: settlementAccountId,
-            userId: auth.user!._id
+        // --- Step 1: Check for existing verified resettlement accounts ---
+        const userResettlementAccounts = await SettlementAccount.find({
+            userId: auth.user!._id,
+            status: "verified"
         });
 
-        if (!settlementAccount) {
-            return corsResponse({ error: "The provided resettlement account does not exist or does not belong to your account." }, 404, origin);
+        if (userResettlementAccounts.length === 0) {
+            return corsResponse({ 
+                error: "Unable to add bank account, kindly create a resettlement account.",
+                helpText: "You must first create a verified account through the 'Apply for Resettlement' section using your Bankora details."
+            }, 400, origin);
         }
 
-        if (settlementAccount.status !== "verified") {
+        // --- Step 2: Validate Settlement Account ---
+        let settlementAccount;
+
+        // Find match by ID or Details
+        if (settlementAccountId) {
+            settlementAccount = userResettlementAccounts.find(acc => acc._id.toString() === settlementAccountId);
+        }
+
+        if (!settlementAccount && accountNumber && bankName) {
+            settlementAccount = userResettlementAccounts.find(acc => 
+                acc.accountNumber === accountNumber && 
+                acc.bankName.toLowerCase() === bankName.toLowerCase()
+            );
+        }
+
+        if (!settlementAccount) {
             return corsResponse({ 
-                error: "This resettlement account must be 'verified' by an administrator before use." 
+                error: "A valid, verified resettlement account is required for direct withdrawal. The details submitted do not match any of your verified accounts.",
+                verifiedAccounts: userResettlementAccounts.map(a => `${a.bankName} (***${a.accountNumber.slice(-4)})`)
             }, 400, origin);
+        }
+
+        if (user.availableCash < amount) {
+            return corsResponse({ error: "Insufficient available cash for withdrawal." }, 400, origin);
         }
 
         // Prepare Bank API Payload (using verified account data)

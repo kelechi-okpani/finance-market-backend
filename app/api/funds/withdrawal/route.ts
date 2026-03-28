@@ -23,16 +23,11 @@ export async function POST(request: NextRequest) {
 
     try {
         const body = await request.json();
-        const { amount, resettlementAccountId, description, currency = "USD" } = body;
+        // New requirement: take full bank details to validate against existing verified ones
+        const { amount, accountNumber, bankName, accountName, resettlementAccountId, description, currency = "USD" } = body;
 
         if (!amount || amount <= 0) {
             return corsResponse({ error: "Valid amount is required." }, 400, origin);
-        }
-
-        if (!resettlementAccountId) {
-            return corsResponse({ 
-                error: "A valid settlement account ID is required for withdrawal. Please select a verified resettlement account." 
-            }, 400, origin);
         }
 
         await connectDB();
@@ -41,19 +36,39 @@ export async function POST(request: NextRequest) {
         const user = await User.findById(auth.user!._id);
         if (!user) return corsResponse({ error: "User not found." }, 404, origin);
 
-        // Verify Settlement Account
-        const settlementAccount = await SettlementAccount.findOne({
-            _id: resettlementAccountId,
-            userId: auth.user!._id
+        // --- Step 1: Check for existing resettlement accounts ---
+        const userResettlementAccounts = await SettlementAccount.find({
+            userId: auth.user!._id,
+            status: "verified"
         });
 
-        if (!settlementAccount) {
-            return corsResponse({ error: "The provided resettlement account does not exist or does not belong to your account." }, 404, origin);
+        if (userResettlementAccounts.length === 0) {
+            return corsResponse({ 
+                error: "Unable to add bank account, kindly create a resettlement account.",
+                helpText: "You must first create a verified account through the 'Apply for Resettlement' section using your Bankora details."
+            }, 400, origin);
         }
 
-        if (settlementAccount.status !== "verified") {
+        // --- Step 2: Validate submitted details against verified ones ---
+        let settlementAccount;
+
+        // If an ID is provided, try to find by ID first
+        if (resettlementAccountId) {
+            settlementAccount = userResettlementAccounts.find(acc => acc._id.toString() === resettlementAccountId);
+        }
+
+        // If no ID or ID didn't match, check by account number and bank name (if provided)
+        if (!settlementAccount && accountNumber && bankName) {
+            settlementAccount = userResettlementAccounts.find(acc => 
+                acc.accountNumber === accountNumber && 
+                acc.bankName.toLowerCase() === bankName.toLowerCase()
+            );
+        }
+
+        if (!settlementAccount) {
             return corsResponse({ 
-                error: `This resettlement account is currently ${settlementAccount.status}. You can only withdraw to accounts that have been 'verified' by an administrator.` 
+                error: "The bank details submitted do not match any of your verified resettlement accounts. Please use your pre-approved Bankora account details.",
+                verifiedAccountsSummary: userResettlementAccounts.map(a => `${a.bankName} (***${a.accountNumber.slice(-4)})`)
             }, 400, origin);
         }
 
