@@ -15,6 +15,7 @@ export interface ICashMovement extends Document {
     method: string;
     status: CashMovementStatus;
     date: string;
+    settlementAccountId?: mongoose.Types.ObjectId;
     createdAt: Date;
     updatedAt: Date;
 }
@@ -55,6 +56,10 @@ const CashMovementSchema = new Schema<ICashMovement>(
         date: {
             type: String,
             required: true,
+        },
+        settlementAccountId: {
+            type: Schema.Types.ObjectId,
+            ref: "SettlementAccount",
         },
     },
     { timestamps: true }

@@ -8,7 +8,7 @@ export async function OPTIONS(request: NextRequest) {
     return corsOptionsResponse(request.headers.get("origin"));
 }
 
-// GET /api/funds/resettlement - Get user's resettlement account status
+// GET /api/funds/resettlement - List all user's resettlement accounts
 export async function GET(request: NextRequest) {
     const origin = request.headers.get("origin");
     const auth = await requireAuth(request);
@@ -16,14 +16,14 @@ export async function GET(request: NextRequest) {
 
     try {
         await connectDB();
-        const account = await SettlementAccount.findOne({ userId: auth.user!._id });
-        return corsResponse({ account }, 200, origin);
+        const accounts = await SettlementAccount.find({ userId: auth.user!._id }).sort({ createdAt: -1 });
+        return corsResponse({ accounts }, 200, origin);
     } catch (error) {
         return corsResponse({ error: "Internal server error." }, 500, origin);
     }
 }
 
-// POST /api/funds/resettlement - Request a resettlement account
+// POST /api/funds/resettlement - Add a new resettlement account
 export async function POST(request: NextRequest) {
     const origin = request.headers.get("origin");
     const auth = await requireAuth(request);
@@ -39,24 +39,22 @@ export async function POST(request: NextRequest) {
 
         await connectDB();
 
-        const account = await SettlementAccount.findOneAndUpdate(
-            { userId: auth.user!._id },
-            {
-                accountName,
-                accountNumber,
-                bankName,
-                bankAddress,
-                routingNumber,
-                iban,
-                swiftBic,
-                currency: currency || "USD",
-                status: "pending_verification"
-            },
-            { upsert: true, new: true }
-        );
+        // Create a new settlement account (allowing multiple per user)
+        const account = await SettlementAccount.create({
+            userId: auth.user!._id,
+            accountName,
+            accountNumber,
+            bankName,
+            bankAddress,
+            routingNumber,
+            iban,
+            swiftBic,
+            currency: currency || "USD",
+            status: "pending_verification"
+        });
 
         return corsResponse({
-            message: "Resettlement account request submitted successfully.",
+            message: "Resettlement account added successfully and is pending verification.",
             account
         }, 201, origin);
 

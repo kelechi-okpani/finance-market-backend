@@ -24,7 +24,7 @@ export interface ISettlementAccount extends Document {
 
 const SettlementAccountSchema = new Schema<ISettlementAccount>(
     {
-        userId: { type: Schema.Types.ObjectId, ref: "User", required: true, unique: true },
+        userId: { type: Schema.Types.ObjectId, ref: "User", required: true },
         accountName: { type: String, required: true, trim: true },
         accountNumber: { type: String, required: true, trim: true },
         bankName: { type: String, required: true, trim: true },
