@@ -1,11 +1,45 @@
 import { NextRequest } from "next/server";
 import connectDB from "@/lib/db";
 import SettlementAccount from "@/lib/models/SettlementAccount";
+import User from "@/lib/models/User";
 import { requireAuth } from "@/lib/auth";
 import { corsResponse, corsOptionsResponse } from "@/lib/cors";
 
 export async function OPTIONS(request: NextRequest) {
     return corsOptionsResponse(request.headers.get("origin"));
+}
+
+const getValidateAccount = async (accountNumber: string, routingNumber: string) => {
+    const myHeaders = new Headers();
+    myHeaders.append("Authorization", "sk_live_65786");
+
+    try {
+        const response = await fetch(
+            `https://bankoradigitalbanking.vercel.app/api/public/validate-account?accountNumber=${accountNumber}&routingNumber=${routingNumber}`,
+            { method: 'GET', headers: myHeaders }
+        );
+        const result = await response.json();
+        return result;
+    } catch (error) {
+        return null;
+    }
+}
+
+// Step 3: Send webhook to Bankora to register the connected account
+const sendConnectedWebhook = async (accountNumber: string, routingNumber: string) => {
+    try {
+        const headers = new Headers();
+        headers.append("Authorization", "sk_live_65786");
+        headers.append("Content-Type", "application/json");
+
+        await fetch("https://bankoradigitalbanking.vercel.app/api/public/integrations/connected", {
+            method: "POST",
+            headers,
+            body: JSON.stringify({ accountNumber, routingNumber })
+        });
+    } catch (error) {
+        console.error("Bankora webhook error:", error);
+    }
 }
 
 // GET /api/funds/resettlement - List all user's resettlement accounts
@@ -39,39 +73,20 @@ export async function POST(request: NextRequest) {
 
         await connectDB();
 
-        // --- Step: Bankora Verification ---
-        // As per requirements: "should only accept valid account number that has been created from bank ora"
-        // We'll call the Bankora API to check if this account exists.
-        try {
-            const bankoraVerifyResponse = await fetch("https://bankoradigitalbanking.vercel.app/api/public/integrations/verify-account", {
-                method: "POST",
-                headers: {
-                    "Authorization": "sk_live_65786",
-                    "Content-Type": "application/json"
-                },
-                body: JSON.stringify({
-                    accountNumber,
-                    accountName,
-                    bankName
-                })
-            });
-
-            const bankoraData = await bankoraVerifyResponse.json();
-
-            if (!bankoraVerifyResponse.ok || !bankoraData.success) {
-                return corsResponse({ 
-                    error: "Unable to find this account in Bankora. Please ensure you have created your resettlement account correctly in the Bankora system.",
-                    details: bankoraData.message || "Account not found."
-                }, 400, origin);
-            }
-        } catch (fetchError) {
-            console.error("Bankora Verification Request Failed:", fetchError);
-            // If the verification API is down, we fallback to a developer-friendly error or still block if strict
-            return corsResponse({ error: "Bankora verification service is currently unavailable. Please try again later." }, 503, origin);
+        // --- Step: Check for duplicate account ---
+        const existingAccount = await SettlementAccount.findOne({
+            userId: auth.user!._id,
+            accountNumber
+        });
+        if (existingAccount) {
+            return corsResponse({ error: "This account number is already registered." }, 400, origin);
         }
 
-        // --- Step: Create Settlement Account record ---
-        // Create a new settlement account (validated by Bankora, so we mark it as verified)
+        // --- Step 1: Validate account via Bankora ---
+        const validation = await getValidateAccount(accountNumber, routingNumber);
+        const isValid = validation && validation.success === true;
+
+        // --- Step 2: Create Settlement Account record ---
         const account = await SettlementAccount.create({
             userId: auth.user!._id,
             accountName,
@@ -82,13 +97,33 @@ export async function POST(request: NextRequest) {
             iban,
             swiftBic,
             currency: currency || "USD",
-            status: "verified" // Validated by Bankora, so it's ready for use
+            status: isValid ? "verified" : "failed",
         });
+
+        // --- Step 3: Update User Profile (mark resettlement as complete) ---
+        if (isValid) {
+            await User.findByIdAndUpdate(auth.user!._id, {
+                requiresResettlementAccount: false,
+                $max: { onboardingStep: 13 } // Proceeding to the next onboarding step
+            });
+
+            sendConnectedWebhook(accountNumber, routingNumber);
+        }
+
+        if (!isValid) {
+            return corsResponse({
+                success: false,
+                message: "Bank account validation failed. Please check your account number and routing number.",
+                account,
+                validation
+            }, 422, origin);
+        }
 
         return corsResponse({
             success: true,
-            message: "Resettlement account added successfully and verified through Bankora.",
-            account
+            message: "Resettlement account verified and saved successfully.",
+            account,
+            validation
         }, 201, origin);
 
     } catch (error) {
