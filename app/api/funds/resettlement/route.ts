@@ -73,20 +73,39 @@ export async function POST(request: NextRequest) {
 
         await connectDB();
 
-        // --- Step: Check for duplicate account ---
-        const existingAccount = await SettlementAccount.findOne({
-            userId: auth.user!._id,
-            accountNumber
-        });
-        if (existingAccount) {
-            return corsResponse({ error: "This account number is already registered." }, 400, origin);
+        // --- Step 1: Validate account via Bankora API ---
+        const validation = await getValidateAccount(accountNumber, routingNumber);
+        
+        if (!validation || validation.success !== true) {
+            return corsResponse({
+                success: false,
+                message: "Bank account validation failed. This account number does not exist in our bank records.",
+                validation
+            }, 422, origin);
         }
 
-        // --- Step 1: Validate account via Bankora ---
-        const validation = await getValidateAccount(accountNumber, routingNumber);
-        const isValid = validation && validation.success === true;
+        // --- Step 2: Check for existing registration ---
+        // Check if ANY user has this account number verified
+        const globalExisting = await SettlementAccount.findOne({
+            accountNumber,
+            status: "verified"
+        });
 
-        // --- Step 2: Create Settlement Account record ---
+        if (globalExisting) {
+            if (globalExisting.userId.toString() === auth.user!._id.toString()) {
+                return corsResponse({ 
+                    success: false,
+                    error: "This account has already been added to your profile." 
+                }, 400, origin);
+            } else {
+                return corsResponse({ 
+                    success: false,
+                    error: "This account number is already registered to another user's profile." 
+                }, 400, origin);
+            }
+        }
+
+        // --- Step 3: Create Settlement Account record ---
         const account = await SettlementAccount.create({
             userId: auth.user!._id,
             accountName,
@@ -97,27 +116,16 @@ export async function POST(request: NextRequest) {
             iban,
             swiftBic,
             currency: currency || "USD",
-            status: isValid ? "verified" : "failed",
+            status: "verified",
         });
 
         // --- Step 3: Update User Profile (mark resettlement as complete) ---
-        if (isValid) {
-            await User.findByIdAndUpdate(auth.user!._id, {
-                requiresResettlementAccount: false,
-                $max: { onboardingStep: 13 } // Proceeding to the next onboarding step
-            });
+        await User.findByIdAndUpdate(auth.user!._id, {
+            requiresResettlementAccount: false,
+            $max: { onboardingStep: 13 } // Proceeding to the next onboarding step
+        });
 
-            sendConnectedWebhook(accountNumber, routingNumber);
-        }
-
-        if (!isValid) {
-            return corsResponse({
-                success: false,
-                message: "Bank account validation failed. Please check your account number and routing number.",
-                account,
-                validation
-            }, 422, origin);
-        }
+        sendConnectedWebhook(accountNumber, routingNumber);
 
         return corsResponse({
             success: true,
