@@ -105,6 +105,20 @@ export async function POST(request: NextRequest) {
             }
         }
 
+        // --- Step 2.5: Check for multiple accounts from the same bank ---
+        // A user cannot have multiple accounts from the same bank.
+        const existingWithSameBank = await SettlementAccount.findOne({
+            userId: auth.user!._id,
+            bankName: { $regex: new RegExp(`^${bankName.trim()}$`, "i") } // Case-insensitive check
+        });
+
+        if (existingWithSameBank) {
+            return corsResponse({
+                success: false,
+                error: `You already have a ${bankName} account registered. You can only have one account per bank.`
+            }, 400, origin);
+        }
+
         // --- Step 3: Create Settlement Account record ---
         const account = await SettlementAccount.create({
             userId: auth.user!._id,

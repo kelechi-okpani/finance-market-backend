@@ -6,6 +6,7 @@ import CashMovement from "@/lib/models/CashMovement";
 import ConnectedAccount from "@/lib/models/ConnectedAccount";
 import StockTransfer from "@/lib/models/StockTransfer";
 import Transaction from "@/lib/models/Transaction";
+import SettlementAccount from "@/lib/models/SettlementAccount";
 import { getAuthUser } from "@/lib/auth";
 import { corsResponse, corsOptionsResponse } from "@/lib/cors";
 import { getStockQuotes } from "@/lib/marketstack";
@@ -33,7 +34,7 @@ export async function GET(request: NextRequest) {
         await connectDB();
 
         // Fetch all related data in parallel
-        const [portfolios, holdings, cashMovements, connectedAccounts, stockTransfers, transactions] =
+        const [portfolios, holdings, cashMovements, connectedAccounts, stockTransfers, transactions, settlementAccounts] =
             await Promise.all([
                 Portfolio.find({ userId: user._id }),
                 Holding.find({ userId: user._id }),
@@ -41,6 +42,7 @@ export async function GET(request: NextRequest) {
                 ConnectedAccount.find({ userId: user._id }),
                 StockTransfer.find({ userId: user._id }).sort({ date: -1 }),
                 Transaction.find({ userId: user._id }),
+                SettlementAccount.find({ userId: user._id }).sort({ createdAt: -1 }),
             ]);
 
         // Get live prices for holdings
@@ -185,6 +187,7 @@ export async function GET(request: NextRequest) {
                     availableCash,
                     failedWithdrawalAttempts: user.failedWithdrawalAttempts || 0,
                     requiresResettlementAccount: user.requiresResettlementAccount || false,
+                    settlementAccounts: settlementAccounts || [],
 
                     // Legacy fields for backward compatibility
                     email: user.email,

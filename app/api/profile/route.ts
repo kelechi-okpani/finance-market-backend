@@ -2,6 +2,8 @@ import { NextRequest } from "next/server";
 import { requireAuth, hashPassword } from "@/lib/auth";
 import { uploadToCloudinary } from "@/lib/cloudinary";
 import { corsResponse, corsOptionsResponse } from "@/lib/cors";
+import SettlementAccount from "@/lib/models/SettlementAccount";
+import connectDB from "@/lib/db";
 
 export async function OPTIONS(request: NextRequest) {
     return corsOptionsResponse(request.headers.get("origin"));
@@ -14,7 +16,18 @@ export async function GET(request: NextRequest) {
     const auth = await requireAuth(request);
     if (auth.error) return auth.error;
 
-    return corsResponse({ user: auth.user }, 200, origin);
+    try {
+        await connectDB();
+        const settlementAccounts = await SettlementAccount.find({ userId: auth.user!._id }).sort({ createdAt: -1 });
+
+        return corsResponse({ 
+            user: auth.user,
+            settlementAccounts 
+        }, 200, origin);
+    } catch (error) {
+        console.error("Profile GET error:", error);
+        return corsResponse({ error: "Internal server error." }, 500, origin);
+    }
 }
 
 // PUT /api/profile - Update personal info
