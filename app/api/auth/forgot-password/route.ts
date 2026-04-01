@@ -4,7 +4,6 @@ import User from "@/lib/models/User";
 import AccountRequest from "@/lib/models/AccountRequest";
 import { corsResponse, corsOptionsResponse } from "@/lib/cors";
 import { sendPasswordResetOTPEmail } from "@/lib/mail";
-import crypto from "crypto";
 
 export async function OPTIONS(request: NextRequest) {
     return corsOptionsResponse(request.headers.get("origin"));
@@ -18,7 +17,8 @@ export async function POST(request: NextRequest) {
     const origin = request.headers.get("origin");
 
     try {
-        const { email } = await request.json();
+        const body = await request.json();
+        const { email } = body;
 
         if (!email) {
             return corsResponse({ error: "Email is required." }, 400, origin);
@@ -31,6 +31,7 @@ export async function POST(request: NextRequest) {
         // 1. Check if they have a pending account request
         const accountReq = await AccountRequest.findOne({ email: emailLower });
         if (accountReq && accountReq.status !== "approved") {
+            console.log(`Forgot password attempt for pending/rejected account: ${emailLower} (Status: ${accountReq.status})`);
             return corsResponse({ 
                 message: `Your account request is currently ${accountReq.status}. You will be able to set your password once it is approved.`,
                 status: accountReq.status
@@ -43,6 +44,7 @@ export async function POST(request: NextRequest) {
         // Security best practice: Don't reveal if user exists in production.
         // But for this demo/app, we'll return a helpful message if not found.
         if (!user) {
+            console.log(`Forgot password attempt for non-existent user: ${emailLower}`);
             return corsResponse({ 
                 message: "No approved account was found with that email address.",
                 details: accountReq ? "An account request exists but hasn't been fully activated into a user yet." : "No record found."
@@ -58,9 +60,11 @@ export async function POST(request: NextRequest) {
         await user.save();
 
         // Send the email
+        console.log(`Attempting to send reset OTP email to ${user.email}...`);
         const mailResult = await sendPasswordResetOTPEmail(user.email, otpCode, user.firstName);
 
         if (!mailResult.success) {
+            console.error(`Failed to send reset email to ${user.email}:`, mailResult.error);
             return corsResponse({ 
                 error: "Failed to send reset email.",
                 details: (mailResult.error as any)?.message || "Check SMTP configuration on the server.",
@@ -69,6 +73,11 @@ export async function POST(request: NextRequest) {
         }
 
         const isSimulated = mailResult.message === "Simulation successful.";
+        if (isSimulated) {
+            console.log(`[SIMULATION] Reset OTP for ${user.email}: ${otpCode}`);
+        } else {
+            console.log(`Reset OTP email successfully sent to ${user.email}`);
+        }
 
         return corsResponse({ 
             message: "If an account with that email exists, we have sent a reset code.",

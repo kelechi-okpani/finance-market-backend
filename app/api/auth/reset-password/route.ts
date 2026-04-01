@@ -10,16 +10,20 @@ export async function OPTIONS(request: NextRequest) {
 
 /**
  * POST /api/auth/reset-password
- * Resets the password using a valid token.
+ * Resets the password using a valid token/OTP.
  */
 export async function POST(request: NextRequest) {
     const origin = request.headers.get("origin");
 
     try {
-        const { token, newPassword } = await request.json();
+        const body = await request.json();
+        const { token, otp, newPassword, email } = body;
+        
+        // Support both "token" and "otp" keys for flexibility
+        const resetToken = token || otp;
 
-        if (!token || !newPassword) {
-            return corsResponse({ error: "Token and new password are required." }, 400, origin);
+        if (!resetToken || !newPassword) {
+            return corsResponse({ error: "Token/OTP and new password are required." }, 400, origin);
         }
 
         if (newPassword.length < 8) {
@@ -28,12 +32,20 @@ export async function POST(request: NextRequest) {
 
         await connectDB();
 
-        const user = await User.findOne({
-            resetPasswordToken: token,
-            resetPasswordExpires: { $gt: Date.now() }
-        });
+        // Build query - if email is provided, use it to ensure we find the right user
+        const query: any = {
+            resetPasswordToken: String(resetToken).trim(),
+            resetPasswordExpires: { $gt: new Date() }
+        };
+        
+        if (email) {
+            query.email = email.toLowerCase().trim();
+        }
+
+        const user = await User.findOne(query);
 
         if (!user) {
+            console.log(`Reset password failed: Invalid or expired token ${resetToken} for email ${email || 'unknown'}`);
             return corsResponse({ error: "Password reset token is invalid or has expired." }, 400, origin);
         }
 
@@ -44,8 +56,11 @@ export async function POST(request: NextRequest) {
         user.passwordHash = passwordHash;
         user.resetPasswordToken = undefined;
         user.resetPasswordExpires = undefined;
+        
+        // Also clear any other flags if applicable
         await user.save();
 
+        console.log(`Password reset successful for user: ${user.email}`);
         return corsResponse({ message: "Password has been reset successfully." }, 200, origin);
 
     } catch (err: any) {
