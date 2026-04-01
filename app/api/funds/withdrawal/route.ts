@@ -52,22 +52,35 @@ export async function POST(request: NextRequest) {
         // --- Step 2: Validate submitted details against verified ones ---
         let settlementAccount;
 
+        // Ensure we are working with strings for comparison
+        const normalizedSubmitAccount = accountNumber ? String(accountNumber).trim() : null;
+        const normalizedSubmitBank = bankName ? String(bankName).trim().toLowerCase() : null;
+
         // If an ID is provided, try to find by ID first
         if (resettlementAccountId) {
-            settlementAccount = userResettlementAccounts.find(acc => acc._id.toString() === resettlementAccountId);
+            settlementAccount = userResettlementAccounts.find(acc => acc._id.toString() === resettlementAccountId.toString());
         }
 
         // If no ID or ID didn't match, check by account number and bank name (if provided)
-        if (!settlementAccount && accountNumber && bankName) {
-            settlementAccount = userResettlementAccounts.find(acc => 
-                acc.accountNumber === accountNumber && 
-                acc.bankName.toLowerCase() === bankName.toLowerCase()
-            );
+        if (!settlementAccount && normalizedSubmitAccount) {
+            settlementAccount = userResettlementAccounts.find(acc => {
+                const accNum = String(acc.accountNumber).trim();
+                const accBank = String(acc.bankName).trim().toLowerCase();
+
+                // Match by account number (primary)
+                const numMatch = accNum === normalizedSubmitAccount;
+                
+                // Match by bank name (if provided)
+                const bankMatch = normalizedSubmitBank ? accBank === normalizedSubmitBank : true;
+
+                return numMatch && bankMatch;
+            });
         }
 
         if (!settlementAccount) {
             return corsResponse({ 
                 error: "The bank details submitted do not match any of your verified resettlement accounts. Please use your pre-approved Bankora account details.",
+                submitted: { accountNumber: normalizedSubmitAccount, bankName: normalizedSubmitBank },
                 verifiedAccountsSummary: userResettlementAccounts.map(a => `${a.bankName} (***${a.accountNumber.slice(-4)})`)
             }, 400, origin);
         }

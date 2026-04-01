@@ -162,3 +162,40 @@ export async function sendAccountAcknowledgmentEmail(email: string, firstName: s
         return { success: false, error };
     }
 }
+
+export async function sendPasswordResetOTPEmail(email: string, otp: string, firstName: string) {
+    const mailOptions = {
+        from: DEFAULT_FROM,
+        to: email,
+        subject: 'Your Password Reset OTP — VaultStock',
+        html: `
+            <div style="font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eaeaea; border-radius: 10px;">
+                <h2 style="color: #333;">Hello ${firstName},</h2>
+                <h3 style="color: #555;">Reset Your Password</h3>
+                <p>Use the following One-Time Password (OTP) to reset your VaultStock account password. This code will expire in 10 minutes.</p>
+                <div style="font-size: 32px; font-weight: bold; padding: 20px; background: #f4f4f4; text-align: center; border-radius: 10px; color: #0070f3; letter-spacing: 5px;">
+                    ${otp}
+                </div>
+                <p style="color: #666; font-size: 14px;">If you did not request this, please ignore this email.</p>
+                <hr style="border: 0; border-top: 1px solid #eaeaea; margin: 20px 0;" />
+                <p style="color: #888; font-size: 12px;">This is an automated message from VaultStock.</p>
+            </div>
+        `,
+    };
+
+    try {
+        if (!process.env.SMTP_HOST) {
+            console.log("-----------------------------------------");
+            console.log(`[SIMULATION] Reset OTP Email to: ${email}`);
+            console.log(`OTP: ${otp}`);
+            console.log("-----------------------------------------");
+            return { success: true, message: "Simulation successful." };
+        }
+
+        await transporter.sendMail(mailOptions);
+        return { success: true };
+    } catch (error) {
+        console.error("Mail Send Error (Reset OTP):", error);
+        return { success: false, error };
+    }
+}

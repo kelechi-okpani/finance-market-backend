@@ -3,7 +3,7 @@ import connectDB from "@/lib/db";
 import User from "@/lib/models/User";
 import AccountRequest from "@/lib/models/AccountRequest";
 import { corsResponse, corsOptionsResponse } from "@/lib/cors";
-import { sendPasswordResetEmail } from "@/lib/mail";
+import { sendPasswordResetOTPEmail } from "@/lib/mail";
 import crypto from "crypto";
 
 export async function OPTIONS(request: NextRequest) {
@@ -49,16 +49,16 @@ export async function POST(request: NextRequest) {
             }, 200, origin);
         }
 
-        // Generate a random token
-        const resetToken = crypto.randomBytes(32).toString("hex");
-        const resetExpires = new Date(Date.now() + 3600000); // 1 hour from now
+        // Generate a 6-digit OTP
+        const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
+        const resetExpires = new Date(Date.now() + 600000); // 10 minutes from now
 
-        user.resetPasswordToken = resetToken;
+        user.resetPasswordToken = otpCode;
         user.resetPasswordExpires = resetExpires;
         await user.save();
 
         // Send the email
-        const mailResult = await sendPasswordResetEmail(user.email, resetToken);
+        const mailResult = await sendPasswordResetOTPEmail(user.email, otpCode, user.firstName);
 
         if (!mailResult.success) {
             return corsResponse({ 
@@ -71,8 +71,8 @@ export async function POST(request: NextRequest) {
         const isSimulated = mailResult.message === "Simulation successful.";
 
         return corsResponse({ 
-            message: "If an account with that email exists, we have sent a reset link.",
-            ...(isSimulated && { dev_simulated_token: resetToken })
+            message: "If an account with that email exists, we have sent a reset code.",
+            ...(isSimulated && { dev_simulated_otp: otpCode })
         }, 200, origin);
 
     } catch (err: any) {
