@@ -87,8 +87,13 @@ export async function PUT(
             accountRequest.reviewedBy = auth.user!._id;
             await accountRequest.save();
 
-            // Send KYC link email (simulated)
-            await sendKYCLinkEmail(user.email, user.firstName);
+            // Generate a 7-digit KYC token
+            const kycToken = Math.floor(1000000 + Math.random() * 9000000).toString();
+            user.kycToken = kycToken;
+            await user.save();
+
+            // Send KYC link email (simulated or real)
+            await sendKYCLinkEmail(user.email, user.firstName, kycToken);
 
             return corsResponse(
                 {

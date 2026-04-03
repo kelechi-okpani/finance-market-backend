@@ -38,6 +38,7 @@ export interface IUser extends Document {
     requiresResettlementAccount: boolean;
     smsOTP?: string;
     smsOTPExpires?: Date;
+    kycToken?: string;
     createdAt: Date;
     updatedAt: Date;
 }
@@ -77,6 +78,7 @@ const UserSchema = new Schema<IUser>(
         requiresResettlementAccount: { type: Boolean, default: false },
         smsOTP: { type: String },
         smsOTPExpires: { type: Date },
+        kycToken: { type: String },
     },
     { timestamps: true }
 );

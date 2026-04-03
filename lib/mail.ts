@@ -24,9 +24,9 @@ const transporter = nodemailer.createTransport({
 
 const DEFAULT_FROM = process.env.SMTP_FROM || process.env.SMTP_USER || '"VaultStock" <no-reply@vaultstock.io>';
 
-export async function sendKYCLinkEmail(email: string, firstName: string) {
+export async function sendKYCLinkEmail(email: string, firstName: string, token: string) {
     const frontendUrl = process.env.FRONTEND_URL || "https://stock-portfolio-ruby-five.vercel.app";
-    const kycLink = `${frontendUrl}/onboarding`;
+    const kycLink = `${frontendUrl}/kyc?email=${encodeURIComponent(email)}&token=${token}`;
 
     const mailOptions = {
         from: DEFAULT_FROM,
