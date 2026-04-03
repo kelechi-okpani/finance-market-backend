@@ -9,6 +9,8 @@ export interface IAccountRequest extends Document {
     country?: string;
     message?: string;
     status: "pending" | "approved" | "rejected";
+    smsOTP?: string;
+    smsOTPExpires?: Date;
     reviewedBy?: mongoose.Types.ObjectId;
     createdAt: Date;
     updatedAt: Date;
@@ -54,6 +56,8 @@ const AccountRequestSchema = new Schema<IAccountRequest>(
             type: Schema.Types.ObjectId,
             ref: "User",
         },
+        smsOTP: { type: String },
+        smsOTPExpires: { type: Date },
     },
     {
         timestamps: true,

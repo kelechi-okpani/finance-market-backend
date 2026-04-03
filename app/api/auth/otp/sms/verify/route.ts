@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import connectDB from "@/lib/db";
 import User from "@/lib/models/User";
+import AccountRequest from "@/lib/models/AccountRequest";
 import { corsResponse, corsOptionsResponse } from "@/lib/cors";
 
 export async function OPTIONS(request: NextRequest) {
@@ -9,7 +10,7 @@ export async function OPTIONS(request: NextRequest) {
 
 /**
  * POST /api/auth/otp/sms/verify
- * Verifies the SMS OTP saved on the user profile.
+ * Verifies the SMS OTP saved on the user profile or account request.
  */
 export async function POST(request: NextRequest) {
     const origin = request.headers.get("origin");
@@ -34,29 +35,41 @@ export async function POST(request: NextRequest) {
 
         await connectDB();
 
-        // Find user
-        const query = email ? { email: email.toLowerCase().trim() } : { phone: phone.trim() };
-        const user = await User.findOne(query);
+        // Build query
+        const query: any = email ? { email: email.toLowerCase().trim() } : { phone: phone.trim() };
+        
+        // 1. Try finding in Users
+        let foundIn = "User";
+        let user: any = await User.findOne(query);
+        let accountReq: any = null;
 
         if (!user) {
-            return corsResponse({ error: "User not found." }, 404, origin);
+            // 2. Try finding in AccountRequests if not a User yet
+            foundIn = "AccountRequest";
+            accountReq = await AccountRequest.findOne(query);
         }
 
+        if (!user && !accountReq) {
+            return corsResponse({ error: "User or account request not found." }, 404, origin);
+        }
+
+        const target = user || accountReq;
+
         // Check if OTP matches and is not expired
-        if (!user.smsOTP || user.smsOTP !== String(otp).trim() || !user.smsOTPExpires || user.smsOTPExpires < new Date()) {
+        if (!target.smsOTP || target.smsOTP !== String(otp).trim() || !target.smsOTPExpires || target.smsOTPExpires < new Date()) {
             return corsResponse({ 
                 error: "Invalid or expired SMS OTP.",
-                details: "Please request a new code if this persists."
+                details: `Please request a new code. (Stored in ${foundIn} document)`
             }, 400, origin);
         }
 
         // Success - clear OTP fields
-        user.smsOTP = undefined;
-        user.smsOTPExpires = undefined;
-        await user.save();
+        target.smsOTP = undefined;
+        target.smsOTPExpires = undefined;
+        await target.save();
 
         return corsResponse(
-            { message: "SMS OTP verified successfully." },
+            { message: `SMS OTP verified successfully. (Verified in ${foundIn})` },
             200,
             origin
         );

@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import connectDB from "@/lib/db";
 import User from "@/lib/models/User";
+import AccountRequest from "@/lib/models/AccountRequest";
 import { corsResponse, corsOptionsResponse } from "@/lib/cors";
 
 export async function OPTIONS(request: NextRequest) {
@@ -9,7 +10,7 @@ export async function OPTIONS(request: NextRequest) {
 
 /**
  * POST /api/auth/otp/sms/send
- * Simulates sending an SMS OTP by saving it to the user profile.
+ * Simulates sending an SMS OTP by saving it to the user profile or account request.
  */
 export async function POST(request: NextRequest) {
     const origin = request.headers.get("origin");
@@ -34,29 +35,47 @@ export async function POST(request: NextRequest) {
 
         await connectDB();
 
-        // Find user by email or phone
-        const query = email ? { email: email.toLowerCase().trim() } : { phone: phone.trim() };
-        const user = await User.findOne(query);
+        // Build query
+        const query: any = email ? { email: email.toLowerCase().trim() } : { phone: phone.trim() };
+        
+        // 1. Try finding in Users
+        let user: any = await User.findOne(query);
+        let accountReq: any = null;
 
         if (!user) {
-            return corsResponse({ error: "User not found." }, 404, origin);
+            // 2. Try finding in AccountRequests if not a User yet
+            accountReq = await AccountRequest.findOne(query);
+        }
+
+        if (!user && !accountReq) {
+            return corsResponse({ 
+                error: "User or account request not found.", 
+                details: "No record matches the provided email or phone number in either the User or AccountRequest collections." 
+            }, 404, origin);
         }
 
         // Generate 6-digit OTP
         const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-        const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+        const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour for better reliability
 
-        // Save to user profile
-        user.smsOTP = otpCode;
-        user.smsOTPExpires = expiresAt;
-        await user.save();
+        // Save to whichever one we found
+        if (user) {
+            user.smsOTP = otpCode;
+            user.smsOTPExpires = expiresAt;
+            await user.save();
+        } else if (accountReq) {
+            accountReq.smsOTP = otpCode;
+            accountReq.smsOTPExpires = expiresAt;
+            await accountReq.save();
+        }
 
         return corsResponse(
             { 
                 message: "SMS OTP generated successfully (Simulation).",
-                developerNote: "In production, this would be sent to the phone. For testing, use the code below.",
+                developerNote: "For testing, use the code below. If you don't receive it, verify the details in the database.",
                 otp: otpCode,
-                expiresAt
+                expiresAt,
+                storedIn: user ? "User" : "AccountRequest"
             },
             200,
             origin
