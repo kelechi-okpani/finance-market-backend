@@ -36,6 +36,8 @@ export interface IUser extends Document {
     availableCash: number;
     failedWithdrawalAttempts: number;
     requiresResettlementAccount: boolean;
+    smsOTP?: string;
+    smsOTPExpires?: Date;
     createdAt: Date;
     updatedAt: Date;
 }
@@ -73,6 +75,8 @@ const UserSchema = new Schema<IUser>(
         availableCash: { type: Number, default: 0 },
         failedWithdrawalAttempts: { type: Number, default: 0 },
         requiresResettlementAccount: { type: Boolean, default: false },
+        smsOTP: { type: String },
+        smsOTPExpires: { type: Date },
     },
     { timestamps: true }
 );
