@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import type { NextRequest } from 'next/server';
 
 const ALLOWED_ORIGINS = [
-  'https://stock-portfolio-ruby-five.vercel.app',
+  'https://stock-valut-portfolio.vercel.app',
   'http://localhost:3000',
   'http://localhost:3001',
   'http://localhost:5173',

@@ -1,6 +1,6 @@
 # VaultStock API
 
-Backend API for the [VaultStock Investment Platform](https://stock-portfolio-ruby-five.vercel.app), built with **Next.js 16** (App Router) and **MongoDB**.
+Backend API for the [VaultStock Investment Platform](https://stock-valut-portfolio.vercel.app), built with **Next.js 16** (App Router) and **MongoDB**.
 
 ## 🚀 Quick Links
 - **API Base URL**: `https://stockinvest-api.vercel.app` (Production)
