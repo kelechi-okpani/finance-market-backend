@@ -15,7 +15,12 @@ export async function POST(request: NextRequest) {
     const origin = request.headers.get("origin");
 
     try {
-        const body = await request.json();
+    let body;
+    try {
+        body = await request.json();
+    } catch (e) {
+        return corsResponse({ error: "Invalid JSON body or empty request." }, 400, origin);
+    }
         const { email, phone, otp } = body;
 
         if ((!email && !phone) || !otp) {
