@@ -22,7 +22,7 @@ export async function PUT(
     try {
         const { id } = await params;
         const body = await request.json();
-        const { status, role, kycVerified, agreementSigned, country, firstName, lastName, phone } = body;
+        const { status, role, kycVerified, agreementSigned, country, firstName, lastName, phone, baseCurrency, availableCash, totalBalance } = body;
 
         await connectDB();
 
@@ -69,6 +69,7 @@ export async function PUT(
         }
         if (typeof kycVerified === "boolean") {
             user.kycVerified = kycVerified;
+            user.kycStatus = kycVerified ? "verified" : "not_started";
         }
         if (typeof agreementSigned === "boolean") {
             user.agreementSigned = agreementSigned;
@@ -84,6 +85,15 @@ export async function PUT(
         }
         if (phone !== undefined) {
             user.phone = phone;
+        }
+        if (baseCurrency !== undefined) {
+            user.baseCurrency = baseCurrency;
+        }
+        if (availableCash !== undefined) {
+            user.availableCash = availableCash;
+        }
+        if (totalBalance !== undefined) {
+            user.totalBalance = totalBalance;
         }
 
         await user.save();
@@ -167,7 +177,7 @@ export async function PATCH(
     try {
         const { id } = await params;
         const body = await request.json();
-        const { accountStatus, status, country, firstName, lastName, phone } = body;
+        const { accountStatus, status, country, firstName, lastName, phone, kycVerified, baseCurrency, availableCash, totalBalance } = body;
 
         await connectDB();
 
@@ -212,6 +222,19 @@ export async function PATCH(
         }
         if (phone !== undefined) {
             user.phone = phone;
+        }
+        if (typeof kycVerified === "boolean") {
+            user.kycVerified = kycVerified;
+            user.kycStatus = kycVerified ? "verified" : "not_started";
+        }
+        if (baseCurrency !== undefined) {
+            user.baseCurrency = baseCurrency;
+        }
+        if (availableCash !== undefined) {
+            user.availableCash = availableCash;
+        }
+        if (totalBalance !== undefined) {
+            user.totalBalance = totalBalance;
         }
 
         await user.save();
