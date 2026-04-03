@@ -15,12 +15,17 @@ export async function POST(request: NextRequest) {
     const origin = request.headers.get("origin");
 
     try {
-    let body;
-    try {
-        body = await request.json();
-    } catch (e) {
-        return corsResponse({ error: "Invalid JSON body or empty request." }, 400, origin);
-    }
+        let body;
+        try {
+            const bodyText = await request.text();
+            if (!bodyText) {
+                return corsResponse({ error: "Empty request body.", details: "Please provide email or phone in JSON format." }, 400, origin);
+            }
+            body = JSON.parse(bodyText);
+        } catch (e: any) {
+            return corsResponse({ error: "Invalid JSON format.", details: e.message }, 400, origin);
+        }
+
         const { email, phone } = body;
 
         if (!email && !phone) {
@@ -46,8 +51,6 @@ export async function POST(request: NextRequest) {
         user.smsOTPExpires = expiresAt;
         await user.save();
 
-        // In a real app, we would call an SMS provider (Twilio, etc.)
-        // But per requirements, we are simulating it and passing it in the message for testing.
         return corsResponse(
             { 
                 message: "SMS OTP generated successfully (Simulation).",
