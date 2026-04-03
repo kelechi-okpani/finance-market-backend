@@ -13,6 +13,13 @@ const transporter = nodemailer.createTransport({
         user: process.env.SMTP_USER,
         pass: process.env.SMTP_PASS,
     },
+    // Addition for robustness:
+    pool: true,
+    maxConnections: 5,
+    maxMessages: 100,
+    tls: {
+        rejectUnauthorized: false // Helps with some hosting environments
+    }
 });
 
 const DEFAULT_FROM = process.env.SMTP_FROM || process.env.SMTP_USER || '"VaultStock" <no-reply@vaultstock.io>';
@@ -100,11 +107,12 @@ export async function sendOTPEmail(email: string, otp: string) {
     const mailOptions = {
         from: DEFAULT_FROM,
         to: email,
-        subject: 'Verify Your Email — VaultStock',
+        subject: 'Verify Your Email - VaultStock',
+        text: `Use the following One-Time Password (OTP) to verify your email address: ${otp}. This code will expire in 60 minutes.`,
         html: `
             <div style="font-family: sans-serif; max-width: 600px; margin: auto;">
                 <h2>Email Verification</h2>
-                <p>Use the following One-Time Password (OTP) to verify your email address. This code will expire in 10 minutes.</p>
+                <p>Use the following One-Time Password (OTP) to verify your email address. This code will expire in 60 minutes.</p>
                 <div style="font-size: 32px; font-weight: bold; padding: 20px; background: #f4f4f4; text-align: center; border-radius: 10px; color: #0070f3; letter-spacing: 5px;">
                     ${otp}
                 </div>
@@ -134,7 +142,8 @@ export async function sendAccountAcknowledgmentEmail(email: string, firstName: s
     const mailOptions = {
         from: DEFAULT_FROM,
         to: email,
-        subject: 'Account Request Received — VaultStock',
+        subject: 'Account Request Received - VaultStock',
+        text: `Hello ${firstName}, Thank you for requesting an account with VaultStock. We have received your request and our team is currently reviewing it.`,
         html: `
             <div style="font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eaeaea; border-radius: 10px;">
                 <h2 style="color: #333;">Hello ${firstName},</h2>
@@ -167,12 +176,13 @@ export async function sendPasswordResetOTPEmail(email: string, otp: string, firs
     const mailOptions = {
         from: DEFAULT_FROM,
         to: email,
-        subject: 'Your Password Reset OTP — VaultStock',
+        subject: 'Your Password Reset OTP - VaultStock',
+        text: `Hello ${firstName}, use the following One-Time Password (OTP) to reset your VaultStock password: ${otp}. This code will expire in 60 minutes.`,
         html: `
             <div style="font-family: sans-serif; max-width: 600px; margin: auto; padding: 20px; border: 1px solid #eaeaea; border-radius: 10px;">
                 <h2 style="color: #333;">Hello ${firstName},</h2>
                 <h3 style="color: #555;">Reset Your Password</h3>
-                <p>Use the following One-Time Password (OTP) to reset your VaultStock account password. This code will expire in 10 minutes.</p>
+                <p>Use the following One-Time Password (OTP) to reset your VaultStock account password. This code will expire in 60 minutes.</p>
                 <div style="font-size: 32px; font-weight: bold; padding: 20px; background: #f4f4f4; text-align: center; border-radius: 10px; color: #0070f3; letter-spacing: 5px;">
                     ${otp}
                 </div>
@@ -196,6 +206,9 @@ export async function sendPasswordResetOTPEmail(email: string, otp: string, firs
         return { success: true };
     } catch (error) {
         console.error("Mail Send Error (Reset OTP):", error);
+        if (error && typeof error === 'object' && 'message' in error) {
+            console.error("Error Message:", error.message);
+        }
         return { success: false, error };
     }
 }

@@ -53,7 +53,7 @@ export async function POST(request: NextRequest) {
 
         // Generate a 6-digit OTP
         const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-        const resetExpires = new Date(Date.now() + 600000); // 10 minutes from now
+        const resetExpires = new Date(Date.now() + 60 * 60 * 1000); // 1 hour from now (increased for reliability)
 
         user.resetPasswordToken = otpCode;
         user.resetPasswordExpires = resetExpires;

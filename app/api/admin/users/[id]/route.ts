@@ -22,7 +22,7 @@ export async function PUT(
     try {
         const { id } = await params;
         const body = await request.json();
-        const { status, role, kycVerified, agreementSigned } = body;
+        const { status, role, kycVerified, agreementSigned, country, firstName, lastName, phone } = body;
 
         await connectDB();
 
@@ -72,6 +72,18 @@ export async function PUT(
         }
         if (typeof agreementSigned === "boolean") {
             user.agreementSigned = agreementSigned;
+        }
+        if (country !== undefined) {
+            user.country = country;
+        }
+        if (firstName !== undefined) {
+            user.firstName = firstName;
+        }
+        if (lastName !== undefined) {
+            user.lastName = lastName;
+        }
+        if (phone !== undefined) {
+            user.phone = phone;
         }
 
         await user.save();
@@ -155,7 +167,7 @@ export async function PATCH(
     try {
         const { id } = await params;
         const body = await request.json();
-        const { accountStatus, status } = body;
+        const { accountStatus, status, country, firstName, lastName, phone } = body;
 
         await connectDB();
 
@@ -187,6 +199,19 @@ export async function PATCH(
                     });
                 }
             }
+        }
+
+        if (country !== undefined) {
+            user.country = country;
+        }
+        if (firstName !== undefined) {
+            user.firstName = firstName;
+        }
+        if (lastName !== undefined) {
+            user.lastName = lastName;
+        }
+        if (phone !== undefined) {
+            user.phone = phone;
         }
 
         await user.save();

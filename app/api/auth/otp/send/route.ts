@@ -23,7 +23,7 @@ export async function POST(request: NextRequest) {
 
         // Generate 6-digit OTP
         const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
-        const expiresAt = new Date(Date.now() + 10 * 60 * 1000); // 10 minutes
+        const expiresAt = new Date(Date.now() + 60 * 60 * 1000); // 1 hour (increased for reliability)
 
         // Save OTP to DB (upsert for same email)
         await OTP.findOneAndUpdate(
