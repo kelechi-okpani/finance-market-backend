@@ -16,7 +16,7 @@ export async function POST(request: NextRequest) {
 
     try {
         const body = await request.json();
-        const { firstName, lastName, email, phone, message } = body;
+        const { firstName, lastName, email, phone, country, message } = body;
 
         // Validate required fields
         if (!firstName || !lastName || !email) {
@@ -70,6 +70,7 @@ export async function POST(request: NextRequest) {
             lastName: lastName.trim(),
             email: email.toLowerCase().trim(),
             phone: phone?.trim(),
+            country: country?.trim(),
             message: message?.trim(),
         });
 

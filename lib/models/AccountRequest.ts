@@ -6,6 +6,7 @@ export interface IAccountRequest extends Document {
     lastName: string;
     email: string;
     phone?: string;
+    country?: string;
     message?: string;
     status: "pending" | "approved" | "rejected";
     reviewedBy?: mongoose.Types.ObjectId;
@@ -33,6 +34,10 @@ const AccountRequestSchema = new Schema<IAccountRequest>(
             trim: true,
         },
         phone: {
+            type: String,
+            trim: true,
+        },
+        country: {
             type: String,
             trim: true,
         },

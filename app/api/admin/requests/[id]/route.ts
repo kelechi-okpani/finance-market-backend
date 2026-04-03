@@ -66,6 +66,7 @@ export async function PUT(
                     firstName: accountRequest.firstName,
                     lastName: accountRequest.lastName,
                     email: accountRequest.email,
+                    country: accountRequest.country,
                     passwordHash,
                     role: "user",
                     status: "approved",
@@ -75,6 +76,9 @@ export async function PUT(
                 // Update existing user status
                 user.status = "approved";
                 user.accountStatus = "pending";
+                if (!user.country && accountRequest.country) {
+                    user.country = accountRequest.country;
+                }
                 await user.save();
             }
 
