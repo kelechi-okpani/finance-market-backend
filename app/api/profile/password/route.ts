@@ -1,6 +1,8 @@
 import { NextRequest } from "next/server";
 import { requireAuth, hashPassword, verifyPassword } from "@/lib/auth";
 import { corsResponse, corsOptionsResponse } from "@/lib/cors";
+import User from "@/lib/models/User";
+import connectDB from "@/lib/db";
 
 export async function OPTIONS(request: NextRequest) {
     return corsOptionsResponse(request.headers.get("origin"));
@@ -22,16 +24,18 @@ export async function PUT(request: NextRequest) {
         }
 
         if (newPassword.length < 8) {
-            return corsResponse({ error: "New password must be at least 8 characters." }, 400, origin);
+            return corsResponse({ error: "New password must be at least 8 characters long." }, 400, origin);
         }
 
+        await connectDB();
         const user = auth.user!;
 
         // Check current password (need to re-fetch user with passwordHash since it's excluded by default)
-        // Actually, in lib/auth.ts getAuthUser, I selected everything. Let's re-verify.
-        // getAuthUser uses .select("-passwordHash"). So I need to fetch it here.
-        const User = user.constructor as any;
         const userWithPass = await User.findById(user._id).select("+passwordHash");
+
+        if (!userWithPass || !userWithPass.passwordHash) {
+             return corsResponse({ error: "User not found or password not set." }, 404, origin);
+        }
 
         const isValid = await verifyPassword(currentPassword, userWithPass.passwordHash);
         if (!isValid) {
@@ -42,8 +46,8 @@ export async function PUT(request: NextRequest) {
         await userWithPass.save();
 
         return corsResponse({ message: "Password updated successfully." }, 200, origin);
-    } catch (error) {
+    } catch (error: any) {
         console.error("Password update error:", error);
-        return corsResponse({ error: "Internal server error." }, 500, origin);
+        return corsResponse({ error: "Internal server error.", details: error.message }, 500, origin);
     }
 }

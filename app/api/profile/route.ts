@@ -40,20 +40,48 @@ export async function PUT(request: NextRequest) {
     try {
         const user = auth.user!;
         const body = await request.json();
-        const { firstName, lastName, phone, avatar } = body;
+        const { 
+            firstName, lastName, phone, sex, dateOfBirth, 
+            occupation, address, country, avatar 
+        } = body;
 
         if (firstName) user.firstName = firstName.trim();
         if (lastName) user.lastName = lastName.trim();
         if (phone !== undefined) user.phone = phone.trim();
+        if (sex) user.sex = sex;
+        if (dateOfBirth) user.dateOfBirth = dateOfBirth;
+        if (occupation) user.occupation = occupation.trim();
+        if (address) user.address = address.trim();
+        if (country) user.country = country.trim();
 
         // Handle avatar upload if provided
-        if (avatar) {
+        if (avatar && avatar.startsWith("data:image")) {
             user.avatar = await uploadToCloudinary(avatar, "profiles/avatars");
+        } else if (avatar) {
+            user.avatar = avatar;
         }
 
         await user.save();
 
-        return corsResponse({ message: "Profile updated successfully.", user }, 200, origin);
+        return corsResponse({ 
+            message: "Profile updated successfully.", 
+            user: {
+                _id: user._id,
+                email: user.email,
+                firstName: user.firstName,
+                lastName: user.lastName,
+                phone: user.phone,
+                sex: user.sex,
+                dateOfBirth: user.dateOfBirth,
+                occupation: user.occupation,
+                address: user.address,
+                country: user.country,
+                avatar: user.avatar,
+                role: user.role,
+                status: user.status,
+                kycStatus: user.kycStatus
+            }
+        }, 200, origin);
     } catch (error) {
         console.error("Profile update error:", error);
         return corsResponse({ error: "Internal server error." }, 500, origin);

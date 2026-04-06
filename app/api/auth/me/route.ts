@@ -172,6 +172,8 @@ export async function GET(request: NextRequest) {
                         address: user.address || "",
                         country: user.country || "",
                         phoneNumber: user.phone || "",
+                        dateOfBirth: user.dateOfBirth || "",
+                        occupation: user.occupation || "",
                     },
                     settings: {
                         accountType: user.accountType || "individual",
