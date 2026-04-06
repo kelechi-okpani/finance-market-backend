@@ -2,6 +2,7 @@ import { NextRequest } from "next/server";
 import connectDB from "@/lib/db";
 import AccountRequest from "@/lib/models/AccountRequest";
 import User from "@/lib/models/User";
+import AdminSettings from "@/lib/models/AdminSettings";
 import { sendAccountAcknowledgmentEmail } from "@/lib/mail";
 import { corsResponse, corsOptionsResponse } from "@/lib/cors";
 
@@ -38,6 +39,20 @@ export async function POST(request: NextRequest) {
         }
 
         await connectDB();
+
+        // Validate country if provided
+        if (country) {
+            const settings = await AdminSettings.findOne();
+            if (settings && settings.allowedCountries.length > 0) {
+                if (!settings.allowedCountries.includes(country.trim())) {
+                    return corsResponse(
+                        { error: "This country is not currently supported for registration." },
+                        400,
+                        origin
+                    );
+                }
+            }
+        }
 
         // Check if account request already exists
         const existingRequest = await AccountRequest.findOne({

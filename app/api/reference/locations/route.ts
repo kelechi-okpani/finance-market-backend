@@ -1,5 +1,8 @@
 import { NextRequest } from "next/server";
 import { corsResponse, corsOptionsResponse } from "@/lib/cors";
+import connectDB from "@/lib/db";
+import AdminSettings from "@/lib/models/AdminSettings";
+import { LOCATION_DATA } from "@/lib/data/locations";
 
 export async function OPTIONS(request: NextRequest) {
     return corsOptionsResponse(request.headers.get("origin"));
@@ -8,70 +11,37 @@ export async function OPTIONS(request: NextRequest) {
 /**
  * GET /api/reference/locations
  * Returns location data: { [country]: { [state]: city[] } }
- * Maps to frontend LocationData interface.
+ * Filtered by allowedCountries in AdminSettings.
  */
 export async function GET(request: NextRequest) {
     const origin = request.headers.get("origin");
 
-    const locations: Record<string, Record<string, string[]>> = {
-        "United States": {
-            "California": ["Los Angeles", "San Francisco", "San Diego", "San Jose", "Sacramento"],
-            "New York": ["New York City", "Buffalo", "Rochester", "Albany", "Syracuse"],
-            "Texas": ["Houston", "Dallas", "Austin", "San Antonio", "Fort Worth"],
-            "Florida": ["Miami", "Orlando", "Tampa", "Jacksonville", "Fort Lauderdale"],
-            "Illinois": ["Chicago", "Aurora", "Naperville", "Rockford", "Joliet"],
-            "Pennsylvania": ["Philadelphia", "Pittsburgh", "Allentown", "Erie", "Reading"],
-            "Ohio": ["Columbus", "Cleveland", "Cincinnati", "Toledo", "Akron"],
-            "Georgia": ["Atlanta", "Augusta", "Columbus", "Savannah", "Athens"],
-            "North Carolina": ["Charlotte", "Raleigh", "Greensboro", "Durham", "Winston-Salem"],
-            "Michigan": ["Detroit", "Grand Rapids", "Warren", "Sterling Heights", "Ann Arbor"],
-        },
-        "United Kingdom": {
-            "England": ["London", "Manchester", "Birmingham", "Leeds", "Liverpool"],
-            "Scotland": ["Edinburgh", "Glasgow", "Aberdeen", "Dundee", "Inverness"],
-            "Wales": ["Cardiff", "Swansea", "Newport", "Wrexham", "Barry"],
-            "Northern Ireland": ["Belfast", "Derry", "Lisburn", "Newry", "Bangor"],
-        },
-        "Nigeria": {
-            "Lagos": ["Lagos Island", "Ikeja", "Lekki", "Victoria Island", "Surulere"],
-            "Abuja": ["Garki", "Wuse", "Maitama", "Asokoro", "Gwarinpa"],
-            "Rivers": ["Port Harcourt", "Obio-Akpor", "Eleme", "Okrika", "Bonny"],
-            "Kano": ["Kano Municipal", "Fagge", "Dala", "Nassarawa", "Tarauni"],
-            "Oyo": ["Ibadan North", "Ibadan South", "Ogbomoso", "Oyo", "Iseyin"],
-        },
-        "Canada": {
-            "Ontario": ["Toronto", "Ottawa", "Mississauga", "Hamilton", "London"],
-            "British Columbia": ["Vancouver", "Victoria", "Surrey", "Burnaby", "Richmond"],
-            "Quebec": ["Montreal", "Quebec City", "Laval", "Gatineau", "Longueuil"],
-            "Alberta": ["Calgary", "Edmonton", "Red Deer", "Lethbridge", "Medicine Hat"],
-        },
-        "Germany": {
-            "Bavaria": ["Munich", "Nuremberg", "Augsburg", "Regensburg", "Würzburg"],
-            "Berlin": ["Berlin"],
-            "Hamburg": ["Hamburg"],
-            "Hesse": ["Frankfurt", "Wiesbaden", "Kassel", "Darmstadt", "Offenbach"],
-            "North Rhine-Westphalia": ["Cologne", "Düsseldorf", "Dortmund", "Essen", "Bonn"],
-        },
-        "India": {
-            "Maharashtra": ["Mumbai", "Pune", "Nagpur", "Nashik", "Aurangabad"],
-            "Karnataka": ["Bengaluru", "Mysuru", "Hubli", "Mangalore", "Belgaum"],
-            "Delhi": ["New Delhi", "North Delhi", "South Delhi", "East Delhi", "West Delhi"],
-            "Tamil Nadu": ["Chennai", "Coimbatore", "Madurai", "Salem", "Tiruchirappalli"],
-            "Gujarat": ["Ahmedabad", "Surat", "Vadodara", "Rajkot", "Gandhinagar"],
-        },
-        "Spain": {
-            "Madrid": ["Madrid", "Alcalá de Henares", "Getafe", "Leganés", "Móstoles"],
-            "Catalonia": ["Barcelona", "Girona", "Tarragona", "Lleida", "Badalona"],
-            "Andalusia": ["Seville", "Málaga", "Córdoba", "Granada", "Cádiz"],
-            "Valencia": ["Valencia", "Alicante", "Elche", "Castellón", "Torrevieja"],
-        },
-        "Australia": {
-            "New South Wales": ["Sydney", "Newcastle", "Wollongong", "Central Coast", "Coffs Harbour"],
-            "Victoria": ["Melbourne", "Geelong", "Ballarat", "Bendigo", "Shepparton"],
-            "Queensland": ["Brisbane", "Gold Coast", "Sunshine Coast", "Cairns", "Townsville"],
-            "Western Australia": ["Perth", "Mandurah", "Bunbury", "Geraldton", "Kalgoorlie"],
-        },
-    };
+    try {
+        await connectDB();
+        const settings = await AdminSettings.findOne();
+        const allowedCountries = settings?.allowedCountries || [];
 
-    return corsResponse({ locations }, 200, origin);
+        let locations: Record<string, Record<string, string[]>> = {};
+
+        if (allowedCountries.length > 0) {
+            // Only return countries that are explicitly allowed by the admin
+            allowedCountries.forEach((country: string) => {
+                if (LOCATION_DATA[country]) {
+                    locations[country] = LOCATION_DATA[country];
+                } else {
+                    // If a country is allowed but not in our detailed data, return it with general settings
+                    locations[country] = { "Other": ["Anywhere"] };
+                }
+            });
+        } else {
+            // Default to all hardcoded countries if no allowance list is set
+            locations = LOCATION_DATA;
+        }
+
+        return corsResponse({ locations }, 200, origin);
+
+    } catch (err: any) {
+        console.error("Reference locations error:", err);
+        return corsResponse({ error: "Failed to fetch locations", details: err.message }, 500, origin);
+    }
 }
