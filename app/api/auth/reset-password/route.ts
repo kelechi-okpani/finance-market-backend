@@ -16,8 +16,32 @@ export async function POST(request: NextRequest) {
     const origin = request.headers.get("origin");
 
     try {
-        const body = await request.json();
-        const { token, otp, newPassword, email } = body;
+        let body: any = {};
+        
+        // 1. Check URL search params first (useful for testing)
+        const { searchParams } = new URL(request.url);
+        const urlToken = searchParams.get("token");
+        const urlOtp = searchParams.get("otp");
+        const urlNewPassword = searchParams.get("newPassword");
+        const urlEmail = searchParams.get("email");
+
+        // 2. Try to get data from JSON body
+        try {
+            const bodyText = await request.text();
+            if (bodyText) {
+                body = JSON.parse(bodyText);
+            }
+        } catch (e) {
+            // If body is invalid and no URL params provided, return error
+            if (!urlToken && !urlOtp && !urlNewPassword) {
+                return corsResponse({ error: "Invalid JSON format." }, 400, origin);
+            }
+        }
+
+        const token = body.token || urlToken;
+        const otp = body.otp || urlOtp;
+        const newPassword = body.newPassword || urlNewPassword;
+        const email = body.email || urlEmail;
         
         // Support both "token" and "otp" keys for flexibility
         const resetToken = token || otp;

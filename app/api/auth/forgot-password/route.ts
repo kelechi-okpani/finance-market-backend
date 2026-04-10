@@ -17,8 +17,25 @@ export async function POST(request: NextRequest) {
     const origin = request.headers.get("origin");
 
     try {
-        const body = await request.json();
-        const { email } = body;
+        let email: string | null = null;
+        
+        // 1. Try to get email from URL search params (useful for quick testing)
+        const { searchParams } = new URL(request.url);
+        email = searchParams.get("email");
+
+        // 2. Try to get email from JSON body (standard way)
+        try {
+            const bodyText = await request.text();
+            if (bodyText) {
+                const body = JSON.parse(bodyText);
+                if (body.email) email = body.email;
+            }
+        } catch (e) {
+            // Ignore parse errors if we already got email from URL
+            if (!email) {
+                return corsResponse({ error: "Invalid JSON format.", details: "Please provide email in JSON body or as a query parameter." }, 400, origin);
+            }
+        }
 
         if (!email) {
             return corsResponse({ error: "Email is required." }, 400, origin);
