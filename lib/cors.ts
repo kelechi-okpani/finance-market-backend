@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 
 const ALLOWED_ORIGINS = [
-    process.env.FRONTEND_URL || "https://stock-valut-portfolio.vercel.app",
+    process.env.FRONTEND_URL || "https://finance-market.vercel.app",
     "http://localhost:3000",
     "http://localhost:3001",
     "http://localhost:5173",
