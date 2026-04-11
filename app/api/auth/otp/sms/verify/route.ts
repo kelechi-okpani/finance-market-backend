@@ -8,6 +8,10 @@ export async function OPTIONS(request: NextRequest) {
     return corsOptionsResponse(request.headers.get("origin"));
 }
 
+export async function GET(request: NextRequest) {
+    return POST(request);
+}
+
 /**
  * POST /api/auth/otp/sms/verify
  * Verifies the SMS OTP saved on the user profile or account request.
@@ -16,27 +20,55 @@ export async function POST(request: NextRequest) {
     const origin = request.headers.get("origin");
 
     try {
-        let body;
+        let email: string | undefined;
+        let phone: string | undefined;
+        let otp: string | undefined;
+
+        // 1. Try to get from JSON body
         try {
             const bodyText = await request.text();
-            if (!bodyText) {
-                return corsResponse({ error: "Empty request body.", details: "Please provide email/phone and otp in JSON format." }, 400, origin);
+            if (bodyText) {
+                const body = JSON.parse(bodyText);
+                email = body.email;
+                phone = body.phone;
+                otp = body.otp;
             }
-            body = JSON.parse(bodyText);
-        } catch (e: any) {
-            return corsResponse({ error: "Invalid JSON format.", details: e.message }, 400, origin);
+        } catch (e) {
+            // Ignore parse errors
         }
 
-        const { email, phone, otp } = body;
+        // 2. Try to get from Query Parameters if not in body
+        if ((!email && !phone) || !otp) {
+            const { searchParams } = new URL(request.url);
+            email = searchParams.get("email") || undefined;
+            phone = searchParams.get("phone") || undefined;
+            otp = searchParams.get("otp") || undefined;
+        }
 
         if ((!email && !phone) || !otp) {
-            return corsResponse({ error: "Email/Phone and OTP are required." }, 400, origin);
+            return corsResponse({ 
+                error: "Email/Phone and OTP are required.",
+                details: "Please provide them in the JSON body or as query parameters."
+            }, 400, origin);
         }
 
         await connectDB();
 
-        // Build query
-        const query: any = email ? { email: email.toLowerCase().trim() } : { phone: phone.trim() };
+        // Build query with phone normalization logic
+        let query: any;
+        if (email) {
+            query = { email: email.toLowerCase().trim() };
+        } else if (phone) {
+            const trimmedPhone = phone.trim();
+            const phoneVariants = [trimmedPhone];
+            if (trimmedPhone.startsWith("0")) {
+                phoneVariants.push("+234" + trimmedPhone.slice(1));
+            }
+            if (trimmedPhone.startsWith("+234")) {
+                phoneVariants.push("0" + trimmedPhone.slice(4));
+            }
+            query = { phone: { $in: phoneVariants } };
+        }
         
         // 1. Try finding in Users
         let foundIn = "User";
@@ -59,7 +91,7 @@ export async function POST(request: NextRequest) {
         if (!target.smsOTP || target.smsOTP !== String(otp).trim() || !target.smsOTPExpires || target.smsOTPExpires < new Date()) {
             return corsResponse({ 
                 error: "Invalid or expired SMS OTP.",
-                details: `Please request a new code. (Stored in ${foundIn} document)`
+                details: `Please request a new code. (Checked in ${foundIn} document)`
             }, 400, origin);
         }
 

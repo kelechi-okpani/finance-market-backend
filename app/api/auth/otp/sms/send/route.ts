@@ -8,6 +8,10 @@ export async function OPTIONS(request: NextRequest) {
     return corsOptionsResponse(request.headers.get("origin"));
 }
 
+export async function GET(request: NextRequest) {
+    return POST(request);
+}
+
 /**
  * POST /api/auth/otp/sms/send
  * Simulates sending an SMS OTP by saving it to the user profile or account request.
@@ -16,27 +20,57 @@ export async function POST(request: NextRequest) {
     const origin = request.headers.get("origin");
 
     try {
-        let body;
+        let email: string | undefined;
+        let phone: string | undefined;
+
+        // 1. Try to get from JSON body
         try {
             const bodyText = await request.text();
-            if (!bodyText) {
-                return corsResponse({ error: "Empty request body.", details: "Please provide email or phone in JSON format." }, 400, origin);
+            if (bodyText) {
+                const body = JSON.parse(bodyText);
+                email = body.email;
+                phone = body.phone;
             }
-            body = JSON.parse(bodyText);
-        } catch (e: any) {
-            return corsResponse({ error: "Invalid JSON format.", details: e.message }, 400, origin);
+        } catch (e) {
+            // Ignore parse errors if we can get from query params
         }
 
-        const { email, phone } = body;
+        // 2. Try to get from Query Parameters if not in body
+        if (!email && !phone) {
+            const { searchParams } = new URL(request.url);
+            email = searchParams.get("email") || undefined;
+            phone = searchParams.get("phone") || undefined;
+        }
 
         if (!email && !phone) {
-            return corsResponse({ error: "Email or phone is required to identify user." }, 400, origin);
+            return corsResponse({ 
+                error: "Identification required.", 
+                details: "Please provide email or phone in JSON body or as a query parameter." 
+            }, 400, origin);
         }
 
         await connectDB();
 
-        // Build query
-        const query: any = email ? { email: email.toLowerCase().trim() } : { phone: phone.trim() };
+        // Build query with phone normalization logic
+        let query: any;
+        if (email) {
+            query = { email: email.toLowerCase().trim() };
+        } else if (phone) {
+            const trimmedPhone = phone.trim();
+            // Create an OR query to match multiple formats
+            const phoneVariants = [trimmedPhone];
+            
+            // If it starts with 0, add the +234 variant
+            if (trimmedPhone.startsWith("0")) {
+                phoneVariants.push("+234" + trimmedPhone.slice(1));
+            }
+            // If it starts with +234, add the 0 variant
+            if (trimmedPhone.startsWith("+234")) {
+                phoneVariants.push("0" + trimmedPhone.slice(4));
+            }
+
+            query = { phone: { $in: phoneVariants } };
+        }
         
         // 1. Try finding in Users
         let user: any = await User.findOne(query);
@@ -50,7 +84,7 @@ export async function POST(request: NextRequest) {
         if (!user && !accountReq) {
             return corsResponse({ 
                 error: "User or account request not found.", 
-                details: "No record matches the provided email or phone number in either the User or AccountRequest collections." 
+                details: `No record matches ${email || phone}. If using a phone number, ensure it matches the database format (e.g., +234...)` 
             }, 404, origin);
         }
 
@@ -75,7 +109,8 @@ export async function POST(request: NextRequest) {
                 developerNote: "For testing, use the code below. If you don't receive it, verify the details in the database.",
                 otp: otpCode,
                 expiresAt,
-                storedIn: user ? "User" : "AccountRequest"
+                foundVia: email || phone,
+                matchedRecord: user ? "User" : "AccountRequest"
             },
             200,
             origin
