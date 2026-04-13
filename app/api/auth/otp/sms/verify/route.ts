@@ -1,7 +1,6 @@
 import { NextRequest } from "next/server";
 import connectDB from "@/lib/db";
-import User from "@/lib/models/User";
-import AccountRequest from "@/lib/models/AccountRequest";
+import SmsOtp from "@/lib/models/SmsOtp";
 import { corsResponse, corsOptionsResponse } from "@/lib/cors";
 
 export async function OPTIONS(request: NextRequest) {
@@ -14,13 +13,13 @@ export async function GET(request: NextRequest) {
 
 /**
  * POST /api/auth/otp/sms/verify
- * Verifies the SMS OTP saved on the user profile or account request.
+ * Verifies the SMS OTP for a given phone number.
+ * Does NOT require the user to exist in the database — just validates phone ownership.
  */
 export async function POST(request: NextRequest) {
     const origin = request.headers.get("origin");
 
     try {
-        let email: string | undefined;
         let phone: string | undefined;
         let otp: string | undefined;
 
@@ -29,79 +28,71 @@ export async function POST(request: NextRequest) {
             const bodyText = await request.text();
             if (bodyText) {
                 const body = JSON.parse(bodyText);
-                email = body.email;
                 phone = body.phone;
                 otp = body.otp;
             }
         } catch (e) {
-            // Ignore parse errors
+            // Ignore parse errors, fall through to query params
         }
 
-        // 2. Try to get from Query Parameters if not in body
-        if ((!email && !phone) || !otp) {
+        // 2. Try query params if not in body
+        if (!phone || !otp) {
             const { searchParams } = new URL(request.url);
-            email = searchParams.get("email") || undefined;
-            phone = searchParams.get("phone") || undefined;
-            otp = searchParams.get("otp") || undefined;
+            phone = phone || searchParams.get("phone") || undefined;
+            otp = otp || searchParams.get("otp") || undefined;
         }
 
-        if ((!email && !phone) || !otp) {
-            return corsResponse({ 
-                error: "Email/Phone and OTP are required.",
-                details: "Please provide them in the JSON body or as query parameters."
+        if (!phone || !otp) {
+            return corsResponse({
+                error: "Phone number and OTP are required.",
+                details: "Please provide both phone and otp in the request body or as query parameters.",
             }, 400, origin);
+        }
+
+        // Normalize phone number
+        const trimmedPhone = phone.trim();
+        let normalizedPhone = trimmedPhone;
+        if (trimmedPhone.startsWith("0")) {
+            normalizedPhone = "+234" + trimmedPhone.slice(1);
         }
 
         await connectDB();
 
-        // Build query with phone normalization logic
-        let query: any;
-        if (email) {
-            query = { email: email.toLowerCase().trim() };
-        } else if (phone) {
-            const trimmedPhone = phone.trim();
-            const phoneVariants = [trimmedPhone];
-            if (trimmedPhone.startsWith("0")) {
-                phoneVariants.push("+234" + trimmedPhone.slice(1));
-            }
-            if (trimmedPhone.startsWith("+234")) {
-                phoneVariants.push("0" + trimmedPhone.slice(4));
-            }
-            query = { phone: { $in: phoneVariants } };
-        }
-        
-        // 1. Try finding in Users
-        let foundIn = "User";
-        let user: any = await User.findOne(query);
-        let accountReq: any = null;
+        // Look up OTP record by phone number
+        const otpRecord = await SmsOtp.findOne({ phone: normalizedPhone });
 
-        if (!user) {
-            // 2. Try finding in AccountRequests if not a User yet
-            foundIn = "AccountRequest";
-            accountReq = await AccountRequest.findOne(query);
+        if (!otpRecord) {
+            return corsResponse({
+                error: "OTP not found.",
+                details: "No OTP was requested for this phone number. Please request a new OTP.",
+            }, 404, origin);
         }
 
-        if (!user && !accountReq) {
-            return corsResponse({ error: "User or account request not found." }, 404, origin);
-        }
-
-        const target = user || accountReq;
-
-        // Check if OTP matches and is not expired
-        if (!target.smsOTP || target.smsOTP !== String(otp).trim() || !target.smsOTPExpires || target.smsOTPExpires < new Date()) {
-            return corsResponse({ 
-                error: "Invalid or expired SMS OTP.",
-                details: `Please request a new code. (Checked in ${foundIn} document)`
+        // Check expiry
+        if (otpRecord.expiresAt < new Date()) {
+            await SmsOtp.deleteOne({ phone: normalizedPhone });
+            return corsResponse({
+                error: "OTP has expired.",
+                details: "Please request a new OTP.",
             }, 400, origin);
         }
 
-        // Success - clear OTP fields
-        target.smsOTP = undefined;
-        target.smsOTPExpires = undefined;
-        await target.save();
+        // Check OTP match
+        if (otpRecord.otp !== String(otp).trim()) {
+            return corsResponse({
+                error: "Invalid OTP.",
+                details: "The OTP you entered is incorrect. Please try again.",
+            }, 400, origin);
+        }
+
+        // Success — delete the used OTP record
+        await SmsOtp.deleteOne({ phone: normalizedPhone });
 
         return corsResponse(
-            { message: `SMS OTP verified successfully. (Verified in ${foundIn})` },
+            {
+                message: "Phone number verified successfully.",
+                phone: normalizedPhone,
+            },
             200,
             origin
         );
