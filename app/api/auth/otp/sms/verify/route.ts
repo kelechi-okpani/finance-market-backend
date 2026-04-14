@@ -23,19 +23,18 @@ export async function POST(request: NextRequest) {
         let phone: string | undefined;
         let otp: string | undefined;
 
-        // 1. Try to get from JSON body
-        try {
-            const bodyText = await request.text();
-            if (bodyText) {
-                const body = JSON.parse(bodyText);
+        // 1. Try to get phone and otp (from body or query)
+        if (request.method === "POST") {
+            try {
+                const body = await request.json();
                 phone = body.phone;
                 otp = body.otp;
+            } catch (e) {
+                // If JSON fails, it might be empty or malformed
             }
-        } catch (e) {
-            // Ignore parse errors, fall through to query params
         }
 
-        // 2. Try query params if not in body
+        // 2. Try query params if not in body (or for GET)
         if (!phone || !otp) {
             const { searchParams } = new URL(request.url);
             phone = phone || searchParams.get("phone") || undefined;
@@ -45,16 +44,22 @@ export async function POST(request: NextRequest) {
         if (!phone || !otp) {
             return corsResponse({
                 error: "Phone number and OTP are required.",
-                details: "Please provide both phone and otp in the request body or as query parameters.",
+                details: "Please provide both phone and otp.",
             }, 400, origin);
         }
 
-        // Normalize phone number
-        const trimmedPhone = phone.trim();
-        let normalizedPhone = trimmedPhone;
-        if (trimmedPhone.startsWith("0")) {
-            normalizedPhone = "+234" + trimmedPhone.slice(1);
+        // Normalize phone number: remove all non-digit characters except optional leading '+'
+        const cleanedPhone = phone.replace(/[^\d+]/g, "");
+        let normalizedPhone = cleanedPhone;
+        
+        // If it starts with '0' and not '+', convert to '+234' (Nigerian default)
+        if (cleanedPhone.startsWith("0") && !cleanedPhone.startsWith("+")) {
+            normalizedPhone = "+234" + cleanedPhone.slice(1);
+        } else if (!cleanedPhone.startsWith("+")) {
+            normalizedPhone = "+234" + cleanedPhone;
         }
+
+        console.log(`Verifying SMS OTP for: ${normalizedPhone}`);
 
         await connectDB();
 

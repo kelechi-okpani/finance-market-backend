@@ -46,11 +46,16 @@ export async function POST(request: NextRequest) {
             }, 400, origin);
         }
 
-        // Normalize phone number
-        const trimmedPhone = phone.trim();
-        let normalizedPhone = trimmedPhone;
-        if (trimmedPhone.startsWith("0")) {
-            normalizedPhone = "+234" + trimmedPhone.slice(1);
+        // Normalize phone number: remove all non-digit characters except optional leading '+'
+        const cleanedPhone = phone.replace(/[^\d+]/g, "");
+        let normalizedPhone = cleanedPhone;
+        
+        // If it starts with '0' and not '+', convert to '+234' (Nigerian default)
+        if (cleanedPhone.startsWith("0") && !cleanedPhone.startsWith("+")) {
+            normalizedPhone = "+234" + cleanedPhone.slice(1);
+        } else if (!cleanedPhone.startsWith("+")) {
+            // If it doesn't start with '+' or '0', assume it's a local number and add +234
+            normalizedPhone = "+234" + cleanedPhone;
         }
 
         await connectDB();
