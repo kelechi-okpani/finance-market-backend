@@ -33,12 +33,19 @@ export async function POST(request: NextRequest) {
         } catch (e) {
             // Ignore parse errors if we already got email from URL
             if (!email) {
-                return corsResponse({ error: "Invalid JSON format.", details: "Please provide email in JSON body or as a query parameter." }, 400, origin);
+                return corsResponse({ 
+                    status_code: 400, 
+                    message: "Invalid JSON format.", 
+                    details: "Please provide email in JSON body or as a query parameter." 
+                }, 400, origin);
             }
         }
 
         if (!email) {
-            return corsResponse({ error: "Email is required." }, 400, origin);
+            return corsResponse({ 
+                status_code: 400, 
+                message: "Email is required." 
+            }, 400, origin);
         }
 
         await connectDB();
@@ -50,6 +57,7 @@ export async function POST(request: NextRequest) {
         if (accountReq && accountReq.status !== "approved") {
             console.log(`Forgot password attempt for pending/rejected account: ${emailLower} (Status: ${accountReq.status})`);
             return corsResponse({ 
+                status_code: 200,
                 message: `Your account request is currently ${accountReq.status}. You will be able to set your password once it is approved.`,
                 status: accountReq.status
             }, 200, origin);
@@ -63,6 +71,7 @@ export async function POST(request: NextRequest) {
         if (!user) {
             console.log(`Forgot password attempt for non-existent user: ${emailLower}`);
             return corsResponse({ 
+                status_code: 200,
                 message: "No approved account was found with that email address.",
                 details: accountReq ? "An account request exists but hasn't been fully activated into a user yet." : "No record found."
             }, 200, origin);
@@ -83,7 +92,8 @@ export async function POST(request: NextRequest) {
         if (!mailResult.success) {
             console.error(`Failed to send reset email to ${user.email}:`, mailResult.error);
             return corsResponse({ 
-                error: "Failed to send reset email.",
+                status_code: 500,
+                message: "Failed to send reset email.",
                 details: (mailResult.error as any)?.message || "Check SMTP configuration on the server.",
                 developerNote: "If testing locally, unset SMTP_HOST to use simulation mode.",
             }, 500, origin);
@@ -97,12 +107,17 @@ export async function POST(request: NextRequest) {
         }
 
         return corsResponse({ 
+            status_code: 200,
             message: "If an account with that email exists, we have sent a reset code.",
             ...(isSimulated && { dev_simulated_otp: otpCode })
         }, 200, origin);
 
     } catch (err: any) {
         console.error("Forgot password error:", err);
-        return corsResponse({ error: "Failed to process request", details: err.message }, 500, origin);
+        return corsResponse({ 
+            status_code: 500,
+            message: "Failed to process request", 
+            details: err.message 
+        }, 500, origin);
     }
 }

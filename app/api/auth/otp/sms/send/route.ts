@@ -41,7 +41,8 @@ export async function POST(request: NextRequest) {
 
         if (!phone) {
             return corsResponse({
-                error: "Phone number required.",
+                status_code: 400,
+                message: "Phone number required.",
                 details: "Please provide a phone number in the request body or as a query parameter.",
             }, 400, origin);
         }
@@ -75,6 +76,7 @@ export async function POST(request: NextRequest) {
         // For now, the OTP is returned in the response for development/testing
         return corsResponse(
             {
+                status_code: 200,
                 message: "OTP sent successfully.",
                 developerNote: "For testing, the OTP is returned below. Replace with real SMS delivery in production.",
                 otp: otpCode,
@@ -87,6 +89,10 @@ export async function POST(request: NextRequest) {
 
     } catch (error: any) {
         console.error("SMS OTP Send Error:", error);
-        return corsResponse({ error: "Failed to send SMS OTP.", details: error.message }, 500, origin);
+        return corsResponse({ 
+            status_code: 500,
+            message: "Failed to send SMS OTP.", 
+            details: error.message 
+        }, 500, origin);
     }
 }

@@ -22,7 +22,10 @@ export async function POST(request: NextRequest) {
         // Validate required fields
         if (!firstName || !lastName || !email) {
             return corsResponse(
-                { error: "First name, last name, and email are required." },
+                { 
+                    status_code: 400,
+                    message: "First name, last name, and email are required." 
+                },
                 400,
                 origin
             );
@@ -32,7 +35,10 @@ export async function POST(request: NextRequest) {
         const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
         if (!emailRegex.test(email)) {
             return corsResponse(
-                { error: "Please provide a valid email address." },
+                { 
+                    status_code: 400,
+                    message: "Please provide a valid email address." 
+                },
                 400,
                 origin
             );
@@ -46,7 +52,10 @@ export async function POST(request: NextRequest) {
             if (settings && settings.allowedCountries.length > 0) {
                 if (!settings.allowedCountries.includes(country.trim())) {
                     return corsResponse(
-                        { error: "This country is not currently supported for registration." },
+                        { 
+                            status_code: 400,
+                            message: "This country is not currently supported for registration." 
+                        },
                         400,
                         origin
                     );
@@ -61,7 +70,8 @@ export async function POST(request: NextRequest) {
         if (existingRequest) {
             return corsResponse(
                 {
-                    error: "An account request with this email already exists.",
+                    status_code: 409,
+                    message: "An account request with this email already exists.",
                     status: existingRequest.status,
                 },
                 409,
@@ -73,7 +83,10 @@ export async function POST(request: NextRequest) {
         const existingUser = await User.findOne({ email: email.toLowerCase() });
         if (existingUser) {
             return corsResponse(
-                { error: "An account with this email already exists. Please sign in." },
+                { 
+                    status_code: 409,
+                    message: "An account with this email already exists. Please sign in." 
+                },
                 409,
                 origin
             );
@@ -94,6 +107,7 @@ export async function POST(request: NextRequest) {
 
         return corsResponse(
             {
+                status_code: 201,
                 message:
                     "Account request submitted successfully. You will receive an email once approved.",
                 request: {
@@ -119,14 +133,20 @@ export async function POST(request: NextRequest) {
             (error as { code: number }).code === 11000
         ) {
             return corsResponse(
-                { error: "An account request with this email already exists." },
+                { 
+                    status_code: 409,
+                    message: "An account request with this email already exists." 
+                },
                 409,
                 origin
             );
         }
 
         return corsResponse(
-            { error: "Internal server error. Please try again later." },
+            { 
+                status_code: 500,
+                message: "Internal server error. Please try again later." 
+            },
             500,
             origin
         );

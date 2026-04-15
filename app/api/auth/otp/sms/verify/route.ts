@@ -43,7 +43,8 @@ export async function POST(request: NextRequest) {
 
         if (!phone || !otp) {
             return corsResponse({
-                error: "Phone number and OTP are required.",
+                status_code: 400,
+                message: "Phone number and OTP are required.",
                 details: "Please provide both phone and otp.",
             }, 400, origin);
         }
@@ -68,7 +69,8 @@ export async function POST(request: NextRequest) {
 
         if (!otpRecord) {
             return corsResponse({
-                error: "OTP not found.",
+                status_code: 404,
+                message: "OTP not found.",
                 details: "No OTP was requested for this phone number. Please request a new OTP.",
             }, 404, origin);
         }
@@ -77,7 +79,8 @@ export async function POST(request: NextRequest) {
         if (otpRecord.expiresAt < new Date()) {
             await SmsOtp.deleteOne({ phone: normalizedPhone });
             return corsResponse({
-                error: "OTP has expired.",
+                status_code: 400,
+                message: "OTP has expired.",
                 details: "Please request a new OTP.",
             }, 400, origin);
         }
@@ -85,7 +88,8 @@ export async function POST(request: NextRequest) {
         // Check OTP match
         if (otpRecord.otp !== String(otp).trim()) {
             return corsResponse({
-                error: "Invalid OTP.",
+                status_code: 400,
+                message: "Invalid OTP.",
                 details: "The OTP you entered is incorrect. Please try again.",
             }, 400, origin);
         }
@@ -95,6 +99,7 @@ export async function POST(request: NextRequest) {
 
         return corsResponse(
             {
+                status_code: 200,
                 message: "Phone number verified successfully.",
                 phone: normalizedPhone,
             },
@@ -104,6 +109,10 @@ export async function POST(request: NextRequest) {
 
     } catch (error: any) {
         console.error("SMS OTP Verify Error:", error);
-        return corsResponse({ error: "Failed to verify SMS OTP.", details: error.message }, 500, origin);
+        return corsResponse({ 
+            status_code: 500,
+            message: "Failed to verify SMS OTP.", 
+            details: error.message 
+        }, 500, origin);
     }
 }

@@ -1,6 +1,7 @@
 import { NextRequest } from "next/server";
 import connectDB from "@/lib/db";
 import OTP from "@/lib/models/OTP";
+import User from "@/lib/models/User";
 import { sendOTPEmail } from "@/lib/mail";
 import { corsResponse, corsOptionsResponse } from "@/lib/cors";
 
@@ -16,10 +17,22 @@ export async function POST(request: NextRequest) {
         const { email } = body;
 
         if (!email) {
-            return corsResponse({ error: "Email is required." }, 400, origin);
+            return corsResponse({ 
+                status_code: 400,
+                message: "Email is required." 
+            }, 400, origin);
         }
 
         await connectDB();
+
+        // Check if user already exists
+        const existingUser = await User.findOne({ email: email.toLowerCase().trim() });
+        if (existingUser) {
+            return corsResponse({ 
+                status_code: 400,
+                message: "An account with this email already exists. Please sign in or use another email." 
+            }, 400, origin);
+        }
 
         // Generate 6-digit OTP
         const otpCode = Math.floor(100000 + Math.random() * 900000).toString();
@@ -37,7 +50,8 @@ export async function POST(request: NextRequest) {
 
         if (!mailResult.success) {
             return corsResponse({ 
-                error: "Failed to send OTP email.",
+                status_code: 500,
+                message: "Failed to send OTP email.",
                 details: (mailResult.error as any)?.message || "Check SMTP configuration on Vercel.",
                 simulatedOTP: otpCode // For debugging, allows continuing without working email
             }, 500, origin);
@@ -47,6 +61,7 @@ export async function POST(request: NextRequest) {
         
         return corsResponse(
             { 
+                status_code: 200,
                 message: "OTP sent successfully to " + email,
                 ...(isSimulated && { dev_simulated_otp: otpCode })
             },
@@ -55,6 +70,9 @@ export async function POST(request: NextRequest) {
         );
     } catch (error) {
         console.error("Send OTP Error:", error);
-        return corsResponse({ error: "Internal server error." }, 500, origin);
+        return corsResponse({ 
+            status_code: 500,
+            message: "Internal server error." 
+        }, 500, origin);
     }
 }

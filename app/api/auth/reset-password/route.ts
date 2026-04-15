@@ -34,7 +34,10 @@ export async function POST(request: NextRequest) {
         } catch (e) {
             // If body is invalid and no URL params provided, return error
             if (!urlToken && !urlOtp && !urlNewPassword) {
-                return corsResponse({ error: "Invalid JSON format." }, 400, origin);
+                return corsResponse({ 
+                    status_code: 400, 
+                    message: "Invalid JSON format." 
+                }, 400, origin);
             }
         }
 
@@ -47,11 +50,17 @@ export async function POST(request: NextRequest) {
         const resetToken = token || otp;
 
         if (!resetToken || !newPassword) {
-            return corsResponse({ error: "Token/OTP and new password are required." }, 400, origin);
+            return corsResponse({ 
+                status_code: 400, 
+                message: "Token/OTP and new password are required." 
+            }, 400, origin);
         }
 
         if (newPassword.length < 8) {
-            return corsResponse({ error: "Password must be at least 8 characters long." }, 400, origin);
+            return corsResponse({ 
+                status_code: 400, 
+                message: "Password must be at least 8 characters long." 
+            }, 400, origin);
         }
 
         await connectDB();
@@ -70,7 +79,10 @@ export async function POST(request: NextRequest) {
 
         if (!user) {
             console.log(`Reset password failed: Invalid or expired token ${resetToken} for email ${email || 'unknown'}`);
-            return corsResponse({ error: "Password reset token is invalid or has expired." }, 400, origin);
+            return corsResponse({ 
+                status_code: 400, 
+                message: "Password reset token is invalid or has expired." 
+            }, 400, origin);
         }
 
         // Hash the new password
@@ -85,10 +97,17 @@ export async function POST(request: NextRequest) {
         await user.save();
 
         console.log(`Password reset successful for user: ${user.email}`);
-        return corsResponse({ message: "Password has been reset successfully." }, 200, origin);
+        return corsResponse({ 
+            status_code: 200, 
+            message: "Password has been reset successfully." 
+        }, 200, origin);
 
     } catch (err: any) {
         console.error("Reset password error:", err);
-        return corsResponse({ error: "Failed to reset password", details: err.message }, 500, origin);
+        return corsResponse({ 
+            status_code: 500, 
+            message: "Failed to reset password", 
+            details: err.message 
+        }, 500, origin);
     }
 }

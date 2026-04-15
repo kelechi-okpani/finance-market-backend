@@ -16,7 +16,10 @@ export async function POST(request: NextRequest) {
         const { email, phone, otp } = body;
 
         if (!(email || phone) || !otp) {
-            return corsResponse({ error: "Email/Phone and OTP are required." }, 400, origin);
+            return corsResponse({ 
+                status_code: 400,
+                message: "Email/Phone and OTP are required." 
+            }, 400, origin);
         }
 
         await connectDB();
@@ -42,11 +45,18 @@ export async function POST(request: NextRequest) {
             if (smsRecord) {
                 if (smsRecord.expiresAt < new Date()) {
                     await SmsOtp.deleteOne({ _id: smsRecord._id });
-                    return corsResponse({ error: "Invalid or expired OTP." }, 400, origin);
+                    return corsResponse({ 
+                        status_code: 400,
+                        message: "Invalid or expired OTP." 
+                    }, 400, origin);
                 }
 
                 await SmsOtp.deleteOne({ _id: smsRecord._id });
-                return corsResponse({ message: "Phone number verified successfully.", verified: true }, 200, origin);
+                return corsResponse({ 
+                    status_code: 200,
+                    message: "Phone number verified successfully.", 
+                    verified: true 
+                }, 200, origin);
             }
         }
 
@@ -58,19 +68,29 @@ export async function POST(request: NextRequest) {
         });
 
         if (!otpRecord) {
-            return corsResponse({ error: "Invalid or expired OTP." }, 400, origin);
+            return corsResponse({ 
+                status_code: 400,
+                message: "Invalid or expired OTP." 
+            }, 400, origin);
         }
 
         // Delete OTP after verification
         await OTP.deleteOne({ _id: otpRecord._id });
 
         return corsResponse(
-            { message: "Verification successful.", verified: true },
+            { 
+                status_code: 200,
+                message: "Verification successful.", 
+                verified: true 
+            },
             200,
             origin
         );
     } catch (error) {
         console.error("Verify OTP Error:", error);
-        return corsResponse({ error: "Internal server error." }, 500, origin);
+        return corsResponse({ 
+            status_code: 500,
+            message: "Internal server error." 
+        }, 500, origin);
     }
 }

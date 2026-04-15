@@ -34,7 +34,10 @@ async function handleLogin(request: NextRequest) {
         // Validate required fields
         if (!email || !password) {
             return corsResponse(
-                { error: "Email and password are required. Ensure you are sending a JSON body OR query parameters." },
+                { 
+                    status_code: 400,
+                    message: "Email and password are required. Ensure you are sending a JSON body OR query parameters." 
+                },
                 400,
                 origin
             );
@@ -46,7 +49,10 @@ async function handleLogin(request: NextRequest) {
         const user = await User.findOne({ email: email.toLowerCase() });
         if (!user) {
             return corsResponse(
-                { error: "Invalid email or password." },
+                { 
+                    status_code: 401,
+                    message: "Invalid email or password." 
+                },
                 401,
                 origin
             );
@@ -55,7 +61,10 @@ async function handleLogin(request: NextRequest) {
         // Verify password
         if (!user.passwordHash) {
             return corsResponse(
-                { error: "Please complete your onboarding to set your password." },
+                { 
+                    status_code: 401,
+                    message: "Please complete your onboarding to set your password." 
+                },
                 401,
                 origin
             );
@@ -64,7 +73,10 @@ async function handleLogin(request: NextRequest) {
         const isValid = await verifyPassword(password, user.passwordHash);
         if (!isValid) {
             return corsResponse(
-                { error: "Invalid email or password." },
+                { 
+                    status_code: 401,
+                    message: "Invalid email or password." 
+                },
                 401,
                 origin
             );
@@ -74,8 +86,8 @@ async function handleLogin(request: NextRequest) {
         if (user.status === "pending") {
             return corsResponse(
                 {
-                    error:
-                        "Your account is pending approval. Please wait for admin approval.",
+                    status_code: 403,
+                    message: "Your account is pending approval. Please wait for admin approval.",
                 },
                 403,
                 origin
@@ -84,7 +96,10 @@ async function handleLogin(request: NextRequest) {
 
         if (user.status === "rejected") {
             return corsResponse(
-                { error: "Your account has been rejected. Please contact support." },
+                { 
+                    status_code: 403,
+                    message: "Your account has been rejected. Please contact support." 
+                },
                 403,
                 origin
             );
@@ -95,6 +110,7 @@ async function handleLogin(request: NextRequest) {
 
         return corsResponse(
             {
+                status_code: 200,
                 message: "Login successful.",
                 token,
                 user: {
@@ -128,7 +144,10 @@ async function handleLogin(request: NextRequest) {
     } catch (error) {
         console.error("Login error:", error);
         return corsResponse(
-            { error: "Internal server error. Please try again later." },
+            { 
+                status_code: 500,
+                message: "Internal server error. Please try again later." 
+            },
             500,
             origin
         );
