@@ -17,9 +17,9 @@ export async function POST(request: NextRequest) {
         const { email } = body;
 
         if (!email) {
-            return corsResponse({ 
+            return corsResponse({
                 status_code: 400,
-                message: "Email is required." 
+                message: "Email is required."
             }, 400, origin);
         }
 
@@ -28,9 +28,9 @@ export async function POST(request: NextRequest) {
         // Check if user already exists
         const existingUser = await User.findOne({ email: email.toLowerCase().trim() });
         if (existingUser) {
-            return corsResponse({ 
+            return corsResponse({
                 status_code: 400,
-                message: "An account with this email already exists. Please sign in or use another email." 
+                message: "An account with this email already exists. Please use another email."
             }, 400, origin);
         }
 
@@ -49,7 +49,7 @@ export async function POST(request: NextRequest) {
         const mailResult = await sendOTPEmail(email, otpCode);
 
         if (!mailResult.success) {
-            return corsResponse({ 
+            return corsResponse({
                 status_code: 500,
                 message: "Failed to send OTP email.",
                 details: (mailResult.error as any)?.message || "Check SMTP configuration on Vercel.",
@@ -58,9 +58,9 @@ export async function POST(request: NextRequest) {
         }
 
         const isSimulated = mailResult.message === "Simulation successful.";
-        
+
         return corsResponse(
-            { 
+            {
                 status_code: 200,
                 message: "OTP sent successfully to " + email,
                 ...(isSimulated && { dev_simulated_otp: otpCode })
@@ -70,9 +70,9 @@ export async function POST(request: NextRequest) {
         );
     } catch (error) {
         console.error("Send OTP Error:", error);
-        return corsResponse({ 
+        return corsResponse({
             status_code: 500,
-            message: "Internal server error." 
+            message: "Internal server error."
         }, 500, origin);
     }
 }
