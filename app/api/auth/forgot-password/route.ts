@@ -18,7 +18,7 @@ export async function POST(request: NextRequest) {
 
     try {
         let email: string | null = null;
-        
+
         // 1. Try to get email from URL search params (useful for quick testing)
         const { searchParams } = new URL(request.url);
         email = searchParams.get("email");
@@ -33,18 +33,18 @@ export async function POST(request: NextRequest) {
         } catch (e) {
             // Ignore parse errors if we already got email from URL
             if (!email) {
-                return corsResponse({ 
-                    status_code: 400, 
-                    message: "Invalid JSON format.", 
-                    details: "Please provide email in JSON body or as a query parameter." 
+                return corsResponse({
+                    status_code: 400,
+                    message: "Invalid email format.",
+                    details: "Please provide email in JSON body or as a query parameter."
                 }, 400, origin);
             }
         }
 
         if (!email) {
-            return corsResponse({ 
-                status_code: 400, 
-                message: "Email is required." 
+            return corsResponse({
+                status_code: 400,
+                message: "Email is required."
             }, 400, origin);
         }
 
@@ -56,11 +56,11 @@ export async function POST(request: NextRequest) {
         const accountReq = await AccountRequest.findOne({ email: emailLower });
         if (accountReq && accountReq.status !== "approved") {
             console.log(`Forgot password attempt for pending/rejected account: ${emailLower} (Status: ${accountReq.status})`);
-            return corsResponse({ 
-                status_code: 200,
+            return corsResponse({
+                status_code: 404,
                 message: `Your account request is currently ${accountReq.status}. You will be able to set your password once it is approved.`,
                 status: accountReq.status
-            }, 200, origin);
+            }, 404, origin);
         }
 
         // 2. Look for existing approved user
@@ -70,11 +70,11 @@ export async function POST(request: NextRequest) {
         // But for this demo/app, we'll return a helpful message if not found.
         if (!user) {
             console.log(`Forgot password attempt for non-existent user: ${emailLower}`);
-            return corsResponse({ 
-                status_code: 200,
+            return corsResponse({
+                status_code: 404,
                 message: "No approved account was found with that email address.",
                 details: accountReq ? "An account request exists but hasn't been fully activated into a user yet." : "No record found."
-            }, 200, origin);
+            }, 404, origin);
         }
 
         // Generate a 6-digit OTP
@@ -91,7 +91,7 @@ export async function POST(request: NextRequest) {
 
         if (!mailResult.success) {
             console.error(`Failed to send reset email to ${user.email}:`, mailResult.error);
-            return corsResponse({ 
+            return corsResponse({
                 status_code: 500,
                 message: "Failed to send reset email.",
                 details: (mailResult.error as any)?.message || "Check SMTP configuration on the server.",
@@ -106,18 +106,18 @@ export async function POST(request: NextRequest) {
             console.log(`Reset OTP email successfully sent to ${user.email}`);
         }
 
-        return corsResponse({ 
+        return corsResponse({
             status_code: 200,
-            message: "If an account with that email exists, we have sent a reset code.",
+            message: "We have sent a reset code to your email address.",
             ...(isSimulated && { dev_simulated_otp: otpCode })
         }, 200, origin);
 
     } catch (err: any) {
         console.error("Forgot password error:", err);
-        return corsResponse({ 
+        return corsResponse({
             status_code: 500,
-            message: "Failed to process request", 
-            details: err.message 
+            message: "Failed to process request",
+            details: err.message
         }, 500, origin);
     }
 }
