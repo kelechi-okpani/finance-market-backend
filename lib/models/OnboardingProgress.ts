@@ -30,7 +30,7 @@ const OnboardingProgressSchema = new Schema<IOnboardingProgress>(
     {
         userId: { type: Schema.Types.ObjectId, ref: "User", required: true, unique: true },
         completedSteps: [{ type: Number }],
-        currentStep: { type: Number, default: 7 },
+        currentStep: { type: Number, default: 5 },
         data: {
             password: Boolean,
             gender: String,

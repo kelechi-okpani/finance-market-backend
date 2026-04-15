@@ -23,28 +23,28 @@ export async function POST(request: NextRequest) {
         let body: any = {};
         const contentType = request.headers.get("content-type") || "";
 
-        try {
-            if (contentType.includes("multipart/form-data") || contentType.includes("application/x-www-form-urlencoded")) {
-                const formData = await request.formData();
-                body = Object.fromEntries(formData.entries());
+        // try {
+        //     if (contentType.includes("multipart/form-data") || contentType.includes("application/x-www-form-urlencoded")) {
+        //         const formData = await request.formData();
+        //         body = Object.fromEntries(formData.entries());
 
-                // Construct nomineeName from flat form data if sent that way
-                body.nomineeName = {
-                    first: body.nomineeFirstName || body["nomineeName.first"] || body["nomineeName[first]"] || "",
-                    middle: body.nomineeMiddleName || body["nomineeName.middle"] || body["nomineeName[middle]"] || "",
-                    last: body.nomineeLastName || body["nomineeName.last"] || body["nomineeName[last]"] || "",
-                };
+        //         // Construct nomineeName from flat form data if sent that way
+        //         body.nomineeName = {
+        //             first: body.nomineeFirstName || body["nomineeName.first"] || body["nomineeName[first]"] || "",
+        //             middle: body.nomineeMiddleName || body["nomineeName.middle"] || body["nomineeName[middle]"] || "",
+        //             last: body.nomineeLastName || body["nomineeName.last"] || body["nomineeName[last]"] || "",
+        //         };
 
-                // Parse checkbox/string booleans
-                body.agreementAccepted = body.agreementAccepted === "true" || body.agreementAccepted === "on" || body.agreementAccepted === true;
-                body.nomineeAddressSame = body.nomineeAddressSame !== "false" && body.nomineeAddressSame !== false;
+        //         // Parse checkbox/string booleans
+        //         body.agreementAccepted = body.agreementAccepted === "true" || body.agreementAccepted === "on" || body.agreementAccepted === true;
+        //         body.nomineeAddressSame = body.nomineeAddressSame !== "false" && body.nomineeAddressSame !== false;
 
-            } else {
-                body = await request.json();
-            }
-        } catch (parseError: any) {
-            return corsResponse({ error: "Invalid request format. Expected JSON or Form Data.", details: parseError.message }, 400, origin);
-        }
+        //     } else {
+        //         body = await request.json();
+        //     }
+        // } catch (parseError: any) {
+        //     return corsResponse({ error: "Invalid request format. Expected JSON or Form Data.", details: parseError.message }, 400, origin);
+        // }
 
         const {
             email,
@@ -58,11 +58,11 @@ export async function POST(request: NextRequest) {
             state,
             zipCode,
             poaType,
-            nomineeName = {},
-            nomineeRelationship,
-            nomineeAddressSame,
+            // nomineeName = {},
+            // nomineeRelationship,
+            // nomineeAddressSame,
             partner,
-            agreementAccepted,
+            agreementAccepted = true,
         } = body;
 
         // Validate required fields
@@ -139,17 +139,17 @@ export async function POST(request: NextRequest) {
         );
 
         // Step 10: Account Nominee
-        const nominee = await AccountNominee.findOneAndUpdate(
-            { userId },
-            {
-                firstName: nomineeName.first || "",
-                middleName: nomineeName.middle || "",
-                lastName: nomineeName.last || "",
-                relationship: nomineeRelationship || "",
-                sameAddressAsUser: nomineeAddressSame ?? true,
-            },
-            { upsert: true, new: true }
-        );
+        // const nominee = await AccountNominee.findOneAndUpdate(
+        //     { userId },
+        //     {
+        //         firstName: nomineeName.first || "",
+        //         middleName: nomineeName.middle || "",
+        //         lastName: nomineeName.last || "",
+        //         relationship: nomineeRelationship || "",
+        //         sameAddressAsUser: nomineeAddressSame ?? true,
+        //     },
+        //     { upsert: true, new: true }
+        // );
 
         // Update onboarding progress
         await OnboardingProgress.findOneAndUpdate(
@@ -162,7 +162,7 @@ export async function POST(request: NextRequest) {
                     "data.gender": sex,
                     "data.kycDocumentId": idType,
                     "data.addressId": address._id.toString(),
-                    "data.nomineeId": nominee._id.toString(),
+                    // "data.nomineeId": nominee._id.toString(),
                     "data.fundDistributionPartner": partner || "",
                     "data.agreementSigned": agreementAccepted,
                 },
@@ -172,9 +172,9 @@ export async function POST(request: NextRequest) {
 
         return corsResponse(
             {
-                message: "KYC onboarding completed successfully.",
-                nextStep: 16,
-                kycStatus: "pending",
+                message: "KYC verification completed successfully.",
+                //nextStep: 16,
+                kycStatus: "completed",
             },
             200,
             origin
