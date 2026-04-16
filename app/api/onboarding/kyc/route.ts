@@ -45,6 +45,7 @@ export async function POST(request: NextRequest) {
             backPageUrl,
             poaDocumentUrl,
             selfieUrl // if you're sending the selfie too
+
         } = body;
 
         // --- FIX 3: Re-enable validation ---
@@ -86,6 +87,7 @@ export async function POST(request: NextRequest) {
                 frontPageUrl: frontPageUrl || "pending_upload",
                 backPageUrl: backPageUrl || "pending_upload",
                 status: "pending",
+
             },
             { upsert: true, new: true }
         );
