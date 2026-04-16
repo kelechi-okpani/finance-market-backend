@@ -50,6 +50,7 @@ export async function PUT(request: NextRequest, { params }: { params: Promise<{ 
             await KYCDocument.updateMany({ userId, status: "pending" }, { status: "rejected", rejectionReason: reason });
         }
 
+
         return corsResponse({ message: "KYC status updated.", user: updatedUser }, 200, origin);
 
     } catch (err: any) {

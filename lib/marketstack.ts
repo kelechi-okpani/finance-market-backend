@@ -41,6 +41,7 @@ export async function getStockQuotes(symbols: string[]): Promise<Map<string, Sto
                     market_cap: quote.marketCap,
                     currency: quote.currency
                 });
+                console.log(result, "result");
             } else {
                 console.error(`Failed to fetch Yahoo Finance quote for ${symbol}`);
             }
