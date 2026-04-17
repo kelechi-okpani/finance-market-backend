@@ -56,6 +56,7 @@ export async function GET(request: NextRequest) {
  * POST /api/admin/market/stocks
  * Admin tool to create or update a stock.
  */
+
 export async function POST(request: NextRequest) {
     const origin = request.headers.get("origin");
 

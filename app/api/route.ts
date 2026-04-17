@@ -34,7 +34,12 @@ export async function GET(request: NextRequest) {
                     users: "GET /api/admin/users",
                     updateUser: "PUT /api/admin/users/:id",
                     kyc: "GET /api/admin/kyc (List users + their KYC docs)",
-                    market: "GET /api/admin/market/stocks (Manage market data)",
+                    // fin_market: "/api/admin/finance",
+
+                    market: "GET /api/admin/finance",
+                    market_one: "GET /api/admin/finance/:id",
+                    // market: "GET /api/admin/market/stocks (Manage market data)",
+
                     settings: "GET/PUT /api/admin/settings (Site-wide controls)",
                 },
                 onboarding: {
