@@ -8,6 +8,7 @@ export async function OPTIONS(request: NextRequest) {
     return corsOptionsResponse(request.headers.get("origin"));
 }
 
+
 /**
  * PUT /api/auth/change-password
  * Changes a logged-in user's password.
