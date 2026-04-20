@@ -1,4 +1,5 @@
 import { NextRequest } from "next/server";
+import mongoose from "mongoose";
 import connectDB from "@/lib/db";
 import CashMovement from "@/lib/models/CashMovement";
 import Transaction from "@/lib/models/Transaction";
@@ -10,97 +11,88 @@ export async function OPTIONS(request: NextRequest) {
     return corsOptionsResponse(request.headers.get("origin"));
 }
 
-/**
- * PUT /api/admin/transactions/[id]
- * Approve or reject a deposit/withdrawal request.
- */
 export async function PUT(request: NextRequest, { params }: { params: Promise<{ id: string }> }) {
     const origin = request.headers.get("origin");
+    const { id } = await params;
+
+    const auth = await requireAdmin(request);
+    if (auth.error) return auth.error;
+
+    await connectDB();
 
     try {
-        const auth = await requireAdmin(request);
-        if (auth.error) return auth.error;
-
-        const { id } = await params;
         const { status, remarks } = await request.json();
 
         if (!["completed", "failed", "cancelled"].includes(status)) {
-            return corsResponse({ error: "Invalid status. Must be completed, failed, or cancelled." }, 400, origin);
+            throw new Error("Invalid status. Use completed, failed, or cancelled.");
         }
 
-        await connectDB();
+        // Removed .session(session) from all queries
+        const cashRequest = await CashMovement.findById(id);
+        if (!cashRequest) throw new Error("Transaction request not found.");
+        if (cashRequest.status !== "pending") throw new Error(`Request is already ${cashRequest.status}.`);
 
-        const transaction = await CashMovement.findById(id);
-        if (!transaction) {
-            return corsResponse({ error: "Transaction not found." }, 404, origin);
-        }
+        const user = await User.findById(cashRequest.userId);
+        if (!user) throw new Error("User associated with this request not found.");
 
-        if (transaction.status !== "pending") {
-            return corsResponse({ error: `Transaction is already ${transaction.status}.` }, 400, origin);
-        }
-
-        // If approving a deposit, update user balance
         if (status === "completed") {
-            const user = await User.findById(transaction.userId);
-            if (user) {
-                if (transaction.type === "deposit") {
-                    user.totalBalance += transaction.amount;
-                    user.availableCash += transaction.amount;
+            if (cashRequest.type === "deposit") {
+                user.totalBalance += cashRequest.amount;
+                user.availableCash += cashRequest.amount;
 
-                    await Transaction.create({
-                        userId: user._id,
-                        type: "deposit",
-                        amount: transaction.amount,
-                        description: `Deposit via ${transaction.method} (Approved)`,
-                        referenceId: transaction._id.toString()
-                    });
-                } else if (transaction.type === "withdrawal") {
-                    // Already deducted on request (locked)
-                    await Transaction.create({
-                        userId: user._id,
-                        type: "withdrawal",
-                        amount: transaction.amount,
-                        description: `Withdrawal via ${transaction.method} (Approved)`,
-                        referenceId: transaction._id.toString()
-                    });
-                }
-                await user.save();
+                await Transaction.create({
+                    userId: user._id,
+                    type: "deposit",
+                    amount: cashRequest.amount,
+                    description: `Deposit via ${cashRequest.method} (Approved)`,
+                    referenceId: cashRequest._id.toString(),
+                    status: "completed"
+                });
+            } else if (cashRequest.type === "withdrawal") {
+                await Transaction.create({
+                    userId: user._id,
+                    type: "withdrawal",
+                    amount: cashRequest.amount,
+                    description: `Withdrawal via ${cashRequest.method} (Approved)`,
+                    referenceId: cashRequest._id.toString(),
+                    status: "completed"
+                });
             }
-        }
+        } 
+        else if (status === "failed" || status === "cancelled") {
+            if (cashRequest.type === "withdrawal") {
+                user.totalBalance += cashRequest.amount;
+                user.availableCash += cashRequest.amount;
 
-        // Refund if failed or cancelled
-        if (status === "failed" || status === "cancelled") {
-            const user = await User.findById(transaction.userId);
-            if (user) {
-                if (transaction.type === "withdrawal") {
-                    user.totalBalance += transaction.amount;
-                    user.availableCash += transaction.amount;
+                await Transaction.create({
+                    userId: user._id,
+                    type: "deposit", 
+                    amount: cashRequest.amount,
+                    description: `Refund: Withdrawal ${status}`,
+                    referenceId: cashRequest._id.toString(),
+                    status: "completed"
+                });
 
-                    await Transaction.create({
-                        userId: user._id,
-                        type: "deposit",
-                        amount: transaction.amount,
-                        description: `Refund: Withdrawal ${status}`,
-                        referenceId: transaction._id.toString()
-                    });
-
-                    if (status === "failed") {
-                        user.failedWithdrawalAttempts += 1;
-                        if (user.failedWithdrawalAttempts >= 3) {
-                            user.requiresResettlementAccount = true;
-                        }
+                if (status === "failed") {
+                    user.failedWithdrawalAttempts = (user.failedWithdrawalAttempts || 0) + 1;
+                    if (user.failedWithdrawalAttempts >= 3) {
+                        user.requiresResettlementAccount = true;
                     }
                 }
-                await user.save();
             }
         }
 
-        transaction.status = status;
-        await transaction.save();
+        cashRequest.status = status;
+        // if (remarks) cashRequest.adminRemarks = remarks; 
 
-        return corsResponse({ message: `Transaction ${status} successfully.`, transaction }, 200, origin);
+        // Standard save
+        await user.save();
+        await cashRequest.save();
+
+        return corsResponse({ message: `Request marked as ${status}.`, cashRequest }, 200, origin);
 
     } catch (err: any) {
-        return corsResponse({ error: "Failed to update transaction", details: err.message }, 500, origin);
+        console.error("Admin PUT Transaction Error:", err);
+        return corsResponse({ error: err.message || "Failed to update transaction" }, 500, origin);
     }
 }

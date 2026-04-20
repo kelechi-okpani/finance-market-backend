@@ -1,9 +1,10 @@
 import { NextRequest } from "next/server";
+import mongoose from "mongoose";
 import connectDB from "@/lib/db";
 import TradeRequest from "@/lib/models/TradeRequest";
-import User from "@/lib/models/User";
-import Holding from "@/lib/models/Holding";
 import Transaction from "@/lib/models/Transaction";
+import User from "@/lib/models/User";
+import Portfolio from "@/lib/models/Portfolio";
 import { requireAdmin } from "@/lib/auth";
 import { corsResponse, corsOptionsResponse } from "@/lib/cors";
 
@@ -11,186 +12,118 @@ export async function OPTIONS(request: NextRequest) {
     return corsOptionsResponse(request.headers.get("origin"));
 }
 
-/**
- * PUT /api/admin/trades/[id]
- * Approve or Reject a stock purchase/sale request.
- */
-export async function PUT(
+export async function PATCH(
     request: NextRequest,
-    { params }: { params: Promise<{ id: string }> }
+    { params }: { params: any }
 ) {
+    const { id } = await params;
     const origin = request.headers.get("origin");
-
     const auth = await requireAdmin(request);
     if (auth.error) return auth.error;
 
     try {
-        const { id } = await params;
-        const { status, remarks } = await request.json();
-
-        if (!["approved", "rejected"].includes(status)) {
-            return corsResponse({ error: "Invalid status. Use approved or rejected." }, 400, origin);
-        }
-
         await connectDB();
+        const body = await request.json();
+        console.log("DEBUG: Received Body ->", body);
+        const action = body.action?.toLowerCase().trim(); // Forces "APPROVED" to "approved"
+        const adminRemarks = body.adminRemarks;
+
+        // const { action, adminRemarks } = await request.json();
 
         const trade = await TradeRequest.findById(id);
-        if (!trade) {
-            return corsResponse({ error: "Trade request not found." }, 404, origin);
+
+        if (!trade || trade.status !== "pending") {
+            throw new Error("Trade not available for processing.");
         }
 
-        if (trade.status !== "pending") {
-            return corsResponse({ error: "Trade request has already been processed." }, 400, origin);
-        }
-
-        const user = await User.findById(trade.userId);
-        if (!user) return corsResponse({ error: "User not found." }, 404, origin);
-
-        if (status === "rejected") {
-            // Refund funds if it was a BUY (assuming we deducted on cart checkout)
-            if (trade.type === "buy") {
-                user.availableCash += trade.totalAmount;
-                await user.save();
-
-                await Transaction.create({
-                    userId: user._id,
-                    type: "deposit",
-                    amount: trade.totalAmount,
-                    description: `Refund: Rejected Buy Request for ${trade.shares} shares of ${trade.symbol}`,
-                    referenceId: trade.symbol
-                });
-            }
-
+        // --- 1. REJECTION LOGIC ---
+        if (action === "rejected") {
             trade.status = "rejected";
-            trade.adminRemarks = remarks;
-            await trade.save();
-            return corsResponse({ message: "Trade request rejected. Funds refunded if applicable." }, 200, origin);
-        }
-
-        // Approval Logic
-        if (trade.type === "buy") {
-            const Stock = (await import("@/lib/models/Stock")).default;
-            const Portfolio = (await import("@/lib/models/Portfolio")).default;
-            const stockData = await Stock.findOne({ symbol: trade.symbol.toUpperCase() });
-
-            // Ensure portfolio validity (Single Portfolio Policy)
-            let targetPortfolioId = trade.portfolioId;
-            const portfolioExists = await Portfolio.findOne({ _id: targetPortfolioId, userId: user._id });
+            trade.adminRemarks = adminRemarks || "Rejected by admin.";
             
-            if (!portfolioExists) {
-                let mainPortfolio = await Portfolio.findOne({ userId: user._id });
-                if (!mainPortfolio) {
-                    mainPortfolio = await Portfolio.create({
-                        userId: user._id,
-                        name: "Main Portfolio",
-                        type: "stocks",
-                        source: "auto-fix"
-                    });
+            if (trade.type === "buy") {
+                await User.findByIdAndUpdate(
+                    trade.userId,
+                    { $inc: { availableCash: trade.totalAmount } }
+                );
+            }
+            await trade.save();
+            
+            // Explicit return ensures NO approval logic runs
+            return corsResponse({ message: "Trade rejected and funds returned." }, 200, origin);
+        } 
+        
+        // --- 2. APPROVAL LOGIC ---
+        // We use an "else if" or ensure the action is explicitly "approved"
+        if (action === "approved") {
+            const portfolio = await Portfolio.findById(trade.portfolioId);
+            if (!portfolio) throw new Error("Portfolio not found.");
+
+            const symbolUpper = trade.symbol.toUpperCase();
+            const assetIndex = portfolio.assets.findIndex((a: any) => a.symbol === symbolUpper);
+
+            if (trade.type === "buy") {
+                if (assetIndex > -1) {
+                    const asset = portfolio.assets[assetIndex];
+                    const newShares = asset.shares + trade.shares;
+                    const newAvg = ((asset.shares * asset.averagePrice) + (trade.shares * trade.pricePerShare)) / newShares;
+                    
+                    portfolio.assets[assetIndex].shares = newShares;
+                    portfolio.assets[assetIndex].averagePrice = newAvg;
+                } else {
+                    portfolio.assets.push({
+                        symbol: symbolUpper,
+                        name: trade.companyName,
+                        logo: trade.logo,
+                        shares: trade.shares,
+                        averagePrice: trade.pricePerShare,
+                        totalCost: trade.totalAmount,
+                        addedAt: new Date()
+                    } as any);
                 }
-                targetPortfolioId = mainPortfolio._id;
+            } else if (trade.type === "sell") {
+                if (assetIndex === -1 || portfolio.assets[assetIndex].shares < trade.shares) {
+                    throw new Error("Insufficient shares in portfolio to execute sale.");
+                }
+
+                portfolio.assets[assetIndex].shares -= trade.shares;
+                if (portfolio.assets[assetIndex].shares === 0) {
+                    portfolio.assets.splice(assetIndex, 1);
+                }
+
+                await User.findByIdAndUpdate(
+                    trade.userId,
+                    { $inc: { availableCash: trade.totalAmount } }
+                );
             }
 
-            const existing = await Holding.findOne({
-                userId: user._id,
-                portfolioId: targetPortfolioId,
-                symbol: trade.symbol
-            });
-
-            if (existing) {
-                const newTotal = existing.shares + trade.shares;
-                const newAvg = ((existing.avgBuyPrice * existing.shares) + (trade.pricePerShare * trade.shares)) / newTotal;
-                existing.shares = newTotal;
-                existing.avgBuyPrice = newAvg;
-                existing.sector = trade.sector || existing.sector; // Update sector name if provided
-                
-                // Keep the rest of market context updated
-                if (stockData) {
-                    existing.price = stockData.price;
-                    existing.change = stockData.change;
-                    existing.changePercent = stockData.changePercent;
-                    existing.volume = stockData.volume;
-                    existing.marketCap = stockData.marketCap;
-                    existing.peRatio = stockData.peRatio;
-                    existing.dividend = stockData.dividend;
-                    existing.marketTrend = stockData.marketTrend;
-                    existing.description = stockData.description;
-                    existing.market = stockData.market;
-                    existing.name = stockData.name;
-                }
-                await existing.save();
-            } else {
-                await Holding.create({
-                    userId: user._id,
-                    portfolioId: targetPortfolioId,
-                    symbol: trade.symbol,
-                    companyName: trade.companyName,
-                    name: stockData?.name || trade.companyName,
-                    sector: trade.sector,
-                    shares: trade.shares,
-                    avgBuyPrice: trade.pricePerShare,
-                    boughtAt: new Date(),
-                    // Snapshotted market data
-                    market: stockData?.market,
-                    price: stockData?.price,
-                    change: stockData?.change,
-                    changePercent: stockData?.changePercent,
-                    volume: stockData?.volume,
-                    marketCap: stockData?.marketCap,
-                    peRatio: stockData?.peRatio,
-                    dividend: stockData?.dividend,
-                    marketTrend: stockData?.marketTrend,
-                    description: stockData?.description
-                });
-            }
+            await portfolio.save();
 
             await Transaction.create({
-                userId: user._id,
-                type: "buy",
+                userId: trade.userId,
+                portfolioId: trade.portfolioId,
+                type: trade.type,
+                symbol: symbolUpper,
                 amount: trade.totalAmount,
-                description: `Admin Approved Buy: ${trade.shares} of ${trade.symbol}`,
-                referenceId: trade.symbol
+                shares: trade.shares,
+                pricePerShare: trade.pricePerShare,
+                currency: trade.currency || "USD",
+                status: "completed",
+                referenceId: `TRADE-${trade._id}`
             });
 
-        } else if (trade.type === "sell") {
-            const holding = await Holding.findOne({
-                _id: trade.holdingId,
-                userId: user._id
-            }) || await Holding.findOne({
-                symbol: trade.symbol,
-                userId: user._id
-            });
+            trade.status = "approved";
+            trade.adminRemarks = adminRemarks || "Trade executed successfully.";
+            await trade.save();
 
-            if (!holding || holding.shares < trade.shares) {
-                return corsResponse({ error: "Insufficient shares available for sale at completion." }, 400, origin);
-            }
-
-            if (holding.shares === trade.shares) {
-                await Holding.deleteOne({ _id: holding._id });
-            } else {
-                holding.shares -= trade.shares;
-                await holding.save();
-            }
-
-            user.availableCash += trade.totalAmount;
-            await user.save();
-
-            await Transaction.create({
-                userId: user._id,
-                type: "sell",
-                amount: trade.totalAmount,
-                description: `Admin Approved Sell: ${trade.shares} of ${trade.symbol}`,
-                referenceId: trade.symbol
-            });
+            return corsResponse({ message: `Execution of ${symbolUpper} successful` }, 200, origin);
         }
 
-        trade.status = "approved";
-        trade.adminRemarks = remarks;
-        await trade.save();
-
-        return corsResponse({ message: `Trade ${trade.type} approved and executed successfully.` }, 200, origin);
+        // If action is neither approved nor rejected
+        return corsResponse({ error: "Invalid action provided." }, 400, origin);
 
     } catch (error: any) {
-        console.error("Trade Approval error:", error);
-        return corsResponse({ error: "Internal server error.", details: error.message }, 500, origin);
+        console.error("Trade Approval Error:", error);
+        return corsResponse({ error: error.message || "Failed to process trade." }, 500, origin);
     }
 }

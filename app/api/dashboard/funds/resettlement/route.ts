@@ -1,0 +1,328 @@
+import { NextRequest } from "next/server";
+import connectDB from "@/lib/db";
+import SettlementAccount from "@/lib/models/SettlementAccount";
+import User from "@/lib/models/User";
+import { requireAuth } from "@/lib/auth";
+import { corsResponse, corsOptionsResponse } from "@/lib/cors";
+
+// Use environment variables for API keys
+const BANKORA_API_KEY = process.env.BANKORA_SECRET_KEY || "sk_live_65786";
+const BANKORA_BASE_URL = "https://bankoradigitalbanking.vercel.app/api/public";
+
+
+export async function OPTIONS(request: NextRequest) {
+    return corsOptionsResponse(request.headers.get("origin"));
+}
+
+/**
+ * Validates account with Bankora API
+ */
+const getValidateAccount = async (accountNumber: string, routingNumber: string) => {
+    try {
+        const response = await fetch(
+            `${BANKORA_BASE_URL}/validate-account?accountNumber=${accountNumber}&routingNumber=${routingNumber}`,
+            { 
+                method: 'GET', 
+                headers: { "Authorization": BANKORA_API_KEY } 
+            }
+        );
+        
+        if (!response.ok) return null;
+        return await response.json();
+    } catch (error) {
+        console.error("Validation fetch error:", error);
+        return null;
+    }
+}
+
+/**
+ * Registers the connected account via webhook
+ */
+const sendConnectedWebhook = async (accountNumber: string, routingNumber: string) => {
+    try {
+        await fetch(`${BANKORA_BASE_URL}/integrations/connected`, {
+            method: "POST",
+            headers: {
+                "Authorization": BANKORA_API_KEY,
+                "Content-Type": "application/json"
+            },
+            body: JSON.stringify({ accountNumber, routingNumber })
+        });
+    } catch (error) {
+        console.error("Bankora webhook error:", error);
+    }
+}
+
+// GET /api/funds/resettlement - List user's resettlement accounts
+export async function GET(request: NextRequest) {
+    const origin = request.headers.get("origin");
+    const auth = await requireAuth(request);
+    if (auth.error) return auth.error;
+
+    try {
+        await connectDB();
+        const accounts = await SettlementAccount.find({ userId: auth.user!._id })
+            .sort({ createdAt: -1 })
+            .lean(); // Lean for better performance
+            
+        return corsResponse({ accounts }, 200, origin);
+    } catch (error) {
+        return corsResponse({ error: "Internal server error." }, 500, origin);
+    }
+}
+
+// POST /api/funds/resettlement - Add a new resettlement account
+export async function POST(request: NextRequest) {
+    const origin = request.headers.get("origin");
+    const auth = await requireAuth(request);
+    if (auth.error) return auth.error;
+
+    try {
+        const body = await request.json();
+        const { 
+            accountName, 
+            accountNumber, 
+            bankName, 
+            bankAddress, 
+            routingNumber, 
+            iban, 
+            swiftBic, 
+            currency = "USD" 
+        } = body;
+
+        // Basic Validation
+        if (!accountName || !accountNumber || !bankName || !routingNumber) {
+            return corsResponse({ error: "Account details and routing number are required." }, 400, origin);
+        }
+
+        await connectDB();
+
+        // 1. Validate via Bankora External API
+        const validation = await getValidateAccount(accountNumber, routingNumber);
+        if (!validation || validation.success !== true) {
+            return corsResponse({
+                success: false,
+                message: "Bank account validation failed. This account was not found in Bankora records.",
+                details: validation
+            }, 422, origin);
+        }
+
+        // 2. Check if account is already registered globally (Fraud Prevention)
+        const globalExisting = await SettlementAccount.findOne({ accountNumber, status: "verified" });
+
+        if (globalExisting) {
+            const isOwner = globalExisting.userId.toString() === auth.user!._id.toString();
+            return corsResponse({ 
+                success: false,
+                error: isOwner 
+                    ? "This account is already on your profile." 
+                    : "This account is registered to another user." 
+            }, 400, origin);
+        }
+
+        // 3. Limit: One account per bank per user
+        const normalizedBank = bankName.trim();
+        const existingWithSameBank = await SettlementAccount.findOne({
+            userId: auth.user!._id,
+            bankName: { $regex: new RegExp(`^${normalizedBank}$`, "i") }
+        });
+
+        if (existingWithSameBank) {
+            return corsResponse({
+                success: false,
+                error: `You already have a ${normalizedBank} account registered.`
+            }, 400, origin);
+        }
+
+        // 4. Create record & update user onboarding state
+        const account = await SettlementAccount.create({
+            userId: auth.user!._id,
+            accountName,
+            accountNumber,
+            bankName: normalizedBank,
+            bankAddress,
+            routingNumber,
+            iban,
+            swiftBic,
+            currency,
+            status: "verified",
+        });
+
+        await User.findByIdAndUpdate(auth.user!._id, {
+            requiresResettlementAccount: false,
+            $max: { onboardingStep: 13 }
+        });
+
+        // 5. Fire and forget webhook
+        sendConnectedWebhook(accountNumber, routingNumber);
+
+        return corsResponse({
+            success: true,
+            message: "Resettlement account verified successfully.",
+            account
+        }, 201, origin);
+
+    } catch (error) {
+        console.error("Resettlement POST error:", error);
+        return corsResponse({ error: "Internal server error." }, 500, origin);
+    }
+}
+
+
+
+
+// import { NextRequest } from "next/server";
+// import connectDB from "@/lib/db";
+// import SettlementAccount from "@/lib/models/SettlementAccount";
+// import User from "@/lib/models/User";
+// import { requireAuth } from "@/lib/auth";
+// import { corsResponse, corsOptionsResponse } from "@/lib/cors";
+
+// export async function OPTIONS(request: NextRequest) {
+//     return corsOptionsResponse(request.headers.get("origin"));
+// }
+
+// const getValidateAccount = async (accountNumber: string, routingNumber: string) => {
+//     const myHeaders = new Headers();
+//     myHeaders.append("Authorization", "sk_live_65786");
+
+//     try {
+//         const response = await fetch(
+//             `https://bankoradigitalbanking.vercel.app/api/public/validate-account?accountNumber=${accountNumber}&routingNumber=${routingNumber}`,
+//             { method: 'GET', headers: myHeaders }
+//         );
+//         const result = await response.json();
+//         return result;
+//     } catch (error) {
+//         return null;
+//     }
+// }
+
+// // Step 3: Send webhook to Bankora to register the connected account
+// const sendConnectedWebhook = async (accountNumber: string, routingNumber: string) => {
+//     try {
+//         const headers = new Headers();
+//         headers.append("Authorization", "sk_live_65786");
+//         headers.append("Content-Type", "application/json");
+
+//         await fetch("https://bankoradigitalbanking.vercel.app/api/public/integrations/connected", {
+//             method: "POST",
+//             headers,
+//             body: JSON.stringify({ accountNumber, routingNumber })
+//         });
+//     } catch (error) {
+//         console.error("Bankora webhook error:", error);
+//     }
+// }
+
+// // GET /api/funds/resettlement - List all user's resettlement accounts
+// export async function GET(request: NextRequest) {
+//     const origin = request.headers.get("origin");
+//     const auth = await requireAuth(request);
+//     if (auth.error) return auth.error;
+
+//     try {
+//         await connectDB();
+//         const accounts = await SettlementAccount.find({ userId: auth.user!._id }).sort({ createdAt: -1 });
+//         return corsResponse({ accounts }, 200, origin);
+//     } catch (error) {
+//         return corsResponse({ error: "Internal server error." }, 500, origin);
+//     }
+// }
+
+// // POST /api/funds/resettlement - Add a new resettlement account
+// export async function POST(request: NextRequest) {
+//     const origin = request.headers.get("origin");
+//     const auth = await requireAuth(request);
+//     if (auth.error) return auth.error;
+
+//     try {
+//         const body = await request.json();
+//         const { accountName, accountNumber, bankName, bankAddress, routingNumber, iban, swiftBic, currency } = body;
+
+//         if (!accountName || !accountNumber || !bankName) {
+//             return corsResponse({ error: "Account name, number, and bank name are required." }, 400, origin);
+//         }
+
+//         await connectDB();
+
+//         // --- Step 1: Validate account via Bankora API ---
+//         const validation = await getValidateAccount(accountNumber, routingNumber);
+        
+//         if (!validation || validation.success !== true) {
+//             return corsResponse({
+//                 success: false,
+//                 message: "Bank account validation failed. This account number does not exist in our bank records.",
+//                 validation
+//             }, 422, origin);
+//         }
+
+//         // --- Step 2: Check for existing registration ---
+//         // Check if ANY user has this account number verified
+//         const globalExisting = await SettlementAccount.findOne({
+//             accountNumber,
+//             status: "verified"
+//         });
+
+//         if (globalExisting) {
+//             if (globalExisting.userId.toString() === auth.user!._id.toString()) {
+//                 return corsResponse({ 
+//                     success: false,
+//                     error: "This account has already been added to your profile." 
+//                 }, 400, origin);
+//             } else {
+//                 return corsResponse({ 
+//                     success: false,
+//                     error: "This account number is already registered to another user's profile." 
+//                 }, 400, origin);
+//             }
+//         }
+
+//         // --- Step 2.5: Check for multiple accounts from the same bank ---
+//         // A user cannot have multiple accounts from the same bank.
+//         const existingWithSameBank = await SettlementAccount.findOne({
+//             userId: auth.user!._id,
+//             bankName: { $regex: new RegExp(`^${bankName.trim()}$`, "i") } // Case-insensitive check
+//         });
+
+//         if (existingWithSameBank) {
+//             return corsResponse({
+//                 success: false,
+//                 error: `You already have a ${bankName} account registered. You can only have one account per bank.`
+//             }, 400, origin);
+//         }
+
+//         // --- Step 3: Create Settlement Account record ---
+//         const account = await SettlementAccount.create({
+//             userId: auth.user!._id,
+//             accountName,
+//             accountNumber,
+//             bankName,
+//             bankAddress,
+//             routingNumber,
+//             iban,
+//             swiftBic,
+//             currency: currency || "USD",
+//             status: "verified",
+//         });
+
+//         // --- Step 3: Update User Profile (mark resettlement as complete) ---
+//         await User.findByIdAndUpdate(auth.user!._id, {
+//             requiresResettlementAccount: false,
+//             $max: { onboardingStep: 13 } // Proceeding to the next onboarding step
+//         });
+
+//         sendConnectedWebhook(accountNumber, routingNumber);
+
+//         return corsResponse({
+//             success: true,
+//             message: "Resettlement account verified and saved successfully.",
+//             account,
+//             validation
+//         }, 201, origin);
+
+//     } catch (error) {
+//         console.error("Resettlement POST error:", error);
+//         return corsResponse({ error: "Internal server error." }, 500, origin);
+//     }
+// }

@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getMarketData, SYMBOL_REGISTRY } from '@/lib/stock-utils';
-import MarketItem from '@/lib/models/stockUtils';
+import MarketItem from '@/lib/models/financeStock';
 import dbConnect from '@/lib/db';
 
 

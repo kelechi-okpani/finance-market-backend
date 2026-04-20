@@ -14,7 +14,8 @@ export interface ICashMovement extends Document {
     currency: string;
     method: string;
     status: CashMovementStatus;
-    date: string;
+    description?: string; // Add this so TypeScript knows it exists
+    date: string;         // Kept as string to match your current schema
     settlementAccountId?: mongoose.Types.ObjectId;
     createdAt: Date;
     updatedAt: Date;
@@ -53,10 +54,15 @@ const CashMovementSchema = new Schema<ICashMovement>(
             enum: ["completed", "pending", "failed", "cancelled"],
             default: "pending",
         },
-        date: {
-            type: String,
-            required: true,
+        // --- ADDED/FIXED FIELDS ---
+        description: { 
+            type: String 
+        }, 
+        date: { 
+            type: String, 
+            default: () => new Date().toISOString() // Use a function to ensure a string is returned
         },
+        // ---------------------------
         settlementAccountId: {
             type: Schema.Types.ObjectId,
             ref: "SettlementAccount",

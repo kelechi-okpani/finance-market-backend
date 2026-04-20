@@ -102,6 +102,7 @@ export async function POST(request: NextRequest) {
                 status_code: 200,
                 message: "Phone number verified successfully.",
                 phone: normalizedPhone,
+                verified: true 
             },
             200,
             origin

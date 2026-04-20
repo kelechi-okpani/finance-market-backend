@@ -10,7 +10,7 @@ export async function OPTIONS(request: NextRequest) {
 
 /**
  * GET /api/admin/trades
- * List all stock buy/sell requests for admin review.
+ * Fetches all user trade requests with advanced filtering and pagination.
  */
 export async function GET(request: NextRequest) {
     const origin = request.headers.get("origin");
@@ -22,20 +22,49 @@ export async function GET(request: NextRequest) {
         await connectDB();
 
         const { searchParams } = new URL(request.url);
-        const status = searchParams.get("status") || "pending";
-        const type = searchParams.get("type"); // buy or sell
+        
+        // 1. Extract Query Parameters
+        const status = searchParams.get("status"); // e.g., 'pending', 'approved', 'rejected'
+        const type = searchParams.get("type");     // 'buy' or 'sell'
+        const symbol = searchParams.get("symbol"); // Filter by specific stock
+        const page = parseInt(searchParams.get("page") || "1");
+        const limit = parseInt(searchParams.get("limit") || "50");
+        const skip = (page - 1) * limit;
 
-        const filter: any = { status };
+        // 2. Build Dynamic Filter
+        const filter: any = {};
+        if (status) filter.status = status;
         if (type) filter.type = type;
+        if (symbol) filter.symbol = symbol.toUpperCase();
 
-        const trades = await TradeRequest.find(filter)
-            .sort({ createdAt: -1 })
-            .populate("userId", "firstName lastName email")
-            .populate("portfolioId", "name");
+        // 3. Execute Query with Population
+        // We populate userId and portfolioId to show the Admin WHO is trading and WHERE.
+        const [trades, total] = await Promise.all([
+            TradeRequest.find(filter)
+                .sort({ createdAt: -1 })
+                .skip(skip)
+                .limit(limit)
+                .populate("userId", "firstName lastName email avatar status")
+                .populate("portfolioId", "name type")
+                .lean(), // lean() improves performance for read-only admin queries
+            TradeRequest.countDocuments(filter)
+        ]);
 
-        return corsResponse({ trades }, 200, origin);
+        return corsResponse({ 
+            trades, 
+            pagination: {
+                total,
+                page,
+                pages: Math.ceil(total / limit),
+                limit
+            }
+        }, 200, origin);
 
     } catch (err: any) {
-        return corsResponse({ error: "Failed to fetch trade requests", details: err.message }, 500, origin);
+        console.error("Admin Trade Fetch Error:", err);
+        return corsResponse({ 
+            error: "Failed to fetch trade requests", 
+            details: err.message 
+        }, 500, origin);
     }
 }

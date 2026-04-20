@@ -116,6 +116,7 @@ export async function POST(request: NextRequest) {
                     lastName: accountRequest.lastName,
                     email: accountRequest.email,
                     status: accountRequest.status,
+                
                     createdAt: accountRequest.createdAt,
                 },
             },

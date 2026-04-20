@@ -1,4 +1,4 @@
-import MarketItem from '@/lib/models/stockUtils';
+import MarketItem from '@/lib/models/financeStock';
 import dbConnect from '@/lib/db';
 
 
@@ -33,7 +33,6 @@ export async function getMarketData(symbols: string[]) {
     const requests = symbols.map(async (s) => {
         try {
             const symbol = s.toUpperCase();
-            
             // 1. Fetch Live Price
             const quoteRes = await fetch(`https://finnhub.io/api/v1/quote?symbol=${symbol}&token=${FINNHUB_KEY}`);
             const q = await quoteRes.json();
@@ -104,78 +103,4 @@ export async function getMarketData(symbols: string[]) {
 
     return items;
 }
-
-
-
-
-// export async function getMarketData(symbols: string[]) {
-//     await dbConnect();
-//     const items = new Map();
-//     const bulkOps: any = [];
-
-//     const requests = symbols.map(async (s) => {
-//         try {
-//             const symbol = s.toUpperCase();
-            
-//             // 1. Fetch Price (Always fetch this)
-//             const quoteRes = await fetch(`https://finnhub.io/api/v1/quote?symbol=${symbol}&token=${FINNHUB_KEY}`);
-//             const q = await quoteRes.json();
-
-//             if (!q.c || q.c === 0) return;
-
-//             // 2. Check MongoDB first for the Name/Logo to save API credits
-//             let existingRecord = await MarketItem.findOne({ symbol }).lean();
-//             let name = existingRecord?.name;
-//             let logo = existingRecord?.logo;
-//             let industry = existingRecord?.industry;
-
-//             // 3. Only fetch profile if it's missing from DB
-//             if (!name || !logo) {
-//                 const profileRes = await fetch(`https://finnhub.io/api/v1/stock/profile2?symbol=${symbol}&token=${FINNHUB_KEY}`);
-//                 const p = await profileRes.json();
-//                 name = p.name || symbol;
-//                 logo = p.logo || "";
-//                 industry = p.finnhubIndustry || "Financials";
-//             }
-
-//             const marketData = {
-//                 symbol,
-//                 name,
-//                 price: q.c,
-//                 change: q.d,
-//                 change_percent: q.dp,
-//                 logo,
-//                 industry,
-//                 marketCap: existingRecord?.marketCap || 0, // Profile2 has marketCap
-//                 type: name ? 'Stock' : 'Asset',
-//                 high: q.h,
-//                 low: q.l,
-//                 open: q.o,
-//                 prev_close: q.pc,
-//                 lastUpdated: new Date()
-//             };
-
-//             bulkOps.push({
-//                 updateOne: {
-//                     filter: { symbol: symbol },
-//                     update: { $set: marketData },
-//                     upsert: true
-//                 }
-//             });
-
-//             items.set(symbol, marketData);
-//         } catch (e) {
-//             console.error(`Fetch error for ${s}:`, e);
-//         }
-//     });
-
-//     await Promise.all(requests);
-
-//     if (bulkOps.length > 0) {
-//         await MarketItem.bulkWrite(bulkOps);
-//     }
-
-//     return items;
-// }
-
 

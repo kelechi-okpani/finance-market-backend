@@ -64,6 +64,12 @@ const AccountRequestSchema = new Schema<IAccountRequest>(
     }
 );
 
+
+AccountRequestSchema.index({ email: 1 });
+AccountRequestSchema.index({ status: 1 });
+AccountRequestSchema.index({ createdAt: -1 });
+
+
 const AccountRequest: Model<IAccountRequest> =
     mongoose.models.AccountRequest ||
     mongoose.model<IAccountRequest>("AccountRequest", AccountRequestSchema);

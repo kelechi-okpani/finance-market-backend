@@ -8,10 +8,6 @@ export async function OPTIONS(request: NextRequest) {
     return corsOptionsResponse(request.headers.get("origin"));
 }
 
-/**
- * GET /api/admin/transactions
- * List all cash movement requests (deposits/withdrawals) for admin review.
- */
 export async function GET(request: NextRequest) {
     const origin = request.headers.get("origin");
 
@@ -23,9 +19,9 @@ export async function GET(request: NextRequest) {
 
         const { searchParams } = new URL(request.url);
         const status = searchParams.get("status");
-        const type = searchParams.get("type"); // deposit or withdrawal
-        const page = parseInt(searchParams.get("page") || "1");
-        const limit = parseInt(searchParams.get("limit") || "50");
+        const type = searchParams.get("type");
+        const page = Math.max(1, parseInt(searchParams.get("page") || "1"));
+        const limit = Math.min(100, parseInt(searchParams.get("limit") || "50"));
         const skip = (page - 1) * limit;
 
         const filter: any = {};
@@ -53,6 +49,7 @@ export async function GET(request: NextRequest) {
         }, 200, origin);
 
     } catch (err: any) {
-        return corsResponse({ error: "Failed to fetch transactions", details: err.message }, 500, origin);
+        console.error("Admin GET Transactions Error:", err);
+        return corsResponse({ error: "Failed to fetch transactions" }, 500, origin);
     }
 }

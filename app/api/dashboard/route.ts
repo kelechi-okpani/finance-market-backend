@@ -1,104 +1,126 @@
 import { NextRequest } from "next/server";
 import connectDB from "@/lib/db";
+import User from "@/lib/models/User";
 import Portfolio from "@/lib/models/Portfolio";
-import Holding from "@/lib/models/Holding";
 import TradeRequest from "@/lib/models/TradeRequest";
 import CashMovement from "@/lib/models/CashMovement";
 import PortfolioTransfer from "@/lib/models/PortfolioTransfer";
+import MarketItem from "@/lib/models/financeStock"; 
 import { requireAuth } from "@/lib/auth";
 import { corsResponse, corsOptionsResponse } from "@/lib/cors";
-import { getStockQuotes } from "@/lib/marketstack";
 
 export async function OPTIONS(request: NextRequest) {
     return corsOptionsResponse(request.headers.get("origin"));
 }
 
-// GET /api/dashboard - Aggregated dashboard overview
 export async function GET(request: NextRequest) {
     const origin = request.headers.get("origin");
 
     const auth = await requireAuth(request);
-    if (auth.error) return auth.error;
+    if (auth.error || !auth.user) {
+        return auth.error || corsResponse({ error: "Unauthorized" }, 401, origin);
+    }
 
     try {
         await connectDB();
 
-        // IF USER IS NOT APPROVED: Return a Journey Summary / Progress state
-        if (auth.user!.status !== "approved") {
+        // 1. Handle Non-Approved State
+        if (auth.user.status !== "approved") {
             const OnboardingProgress = (await import("@/lib/models/OnboardingProgress")).default;
-            const progress = await OnboardingProgress.findOne({ userId: auth.user!._id });
+            const progress = await OnboardingProgress.findOne({ userId: auth.user._id });
 
             return corsResponse({
                 locked: true,
-                status: auth.user!.status,
-                onboardingStep: auth.user!.onboardingStep || 7,
-                progress: progress || { currentStep: 7, completedSteps: [] },
-                message: "Your account is being reviewed. Vital features are locked.",
+                status: auth.user.status,
+                onboardingStep: auth.user.onboardingStep || 1,
+                progress: progress || { currentStep: 1, completedSteps: [] },
+                message: "Your account is under review.",
                 summary: {
-                    fullName: `${auth.user!.firstName} ${auth.user!.lastName}`,
-                    email: auth.user!.email,
-                    kycVerified: auth.user!.kycVerified,
-                    agreementSigned: auth.user!.agreementSigned,
-                    hasProfilePicture: !!auth.user!.headshotUrl,
+                    fullName: `${auth.user.firstName} ${auth.user.lastName}`,
+                    email: auth.user.email,
+                    kycVerified: auth.user.kycVerified || false,
+                    agreementSigned: auth.user.agreementSigned || false,
+                    hasProfilePicture: !!auth.user.headshotUrl,
                 }
             }, 200, origin);
         }
 
-        // IF APPROVED: Return full rich dashboard data
-        const [portfolios, holdings, pendingTrades, pendingCash, sentTransfers] = await Promise.all([
-            Portfolio.find({ userId: auth.user!._id }),
-            Holding.find({ userId: auth.user!._id }),
-            TradeRequest.find({ userId: auth.user!._id, status: "pending" }),
-            CashMovement.find({ userId: auth.user!._id, status: "pending" }),
-            PortfolioTransfer.find({ senderId: auth.user!._id, status: "pending" })
+        // 2. Fetch Data (Removed 'holdings' fetch - now using embedded 'portfolios.assets')
+        const userId = auth.user._id;
+        const [portfolios, pendingTrades, pendingCash, sentTransfers, activeMarkets] = await Promise.all([
+            Portfolio.find({ userId }).lean(), // Use lean for speed
+            TradeRequest.find({ userId, status: "pending" }).lean(),
+            CashMovement.find({ userId, status: "pending" }).lean(),
+            PortfolioTransfer.find({ senderId: userId, status: "pending" }).lean(),
+            MarketItem.find({ isActive: true }).select("symbol price lastPrice").lean()
         ]);
 
-        const symbols = Array.from(new Set(holdings.map(h => h.symbol)));
-        let liveData = new Map();
+        // 3. Create Price Map for O(1) lookup
+        const marketPriceMap = new Map(
+            activeMarkets.map((item: any) => [item.symbol.toUpperCase(), item.lastPrice || item.price || 0])
+        );
 
-        if (symbols.length > 0) {
-            liveData = await getStockQuotes(symbols);
-        }
+        let globalTotalValue = 0;
+        let globalTotalHoldingsCount = 0;
 
-        const totalCost = holdings.reduce((sum, h) => sum + (h.avgBuyPrice * h.shares), 0);
-        const totalValue = holdings.reduce((sum, h) => {
-            const currentPrice = liveData.get(h.symbol)?.price || h.avgBuyPrice;
-            return sum + (currentPrice * h.shares);
-        }, 0);
+        // 4. Map Portfolios and calculate values from embedded assets
+        const portfolioData = portfolios.map((p: any) => {
+            const assets = p.assets || [];
+            globalTotalHoldingsCount += assets.length;
 
-        const change24h = 9.57; // Static for demo as seen on frontend
+            // Calculate Portfolio Value based on Market Prices
+            const pCurrentValue = assets.reduce((sum: number, asset: any) => {
+                const currentPrice = marketPriceMap.get(asset.symbol.toUpperCase()) || asset.averagePrice;
+                return sum + (currentPrice * asset.shares);
+            }, 0);
 
+            // Use the stored totalInvested for performance percentage
+            const pCost = p.totalInvested || 0;
+            const pChange = pCost > 0 ? ((pCurrentValue - pCost) / pCost) * 100 : 0;
+            
+            globalTotalValue += pCurrentValue;
+
+            return {
+                id: p._id.toString(),
+                name: p.name,
+                status: p.status,
+                currentValue: pCurrentValue,
+                totalInvested: pCost,
+                performancePercentage: pChange,
+                holdingsCount: assets.length,
+                assets: assets // Include embedded assets for frontend mapping
+            };
+        });
+
+        // 5. Final Dashboard Payload
         return corsResponse({
+            locked: false,
             stats: {
-                totalAssets: totalValue,
-                change24h,
+                totalAssets: globalTotalValue,
+                availableCash: auth.user.availableCash || 0,
                 activePortfolios: portfolios.length,
-                holdingsCount: holdings.length
+                holdingsCount: globalTotalHoldingsCount
             },
-            portfolios: portfolios.map(p => {
-                // Find holdings for this portfolio to calc value
-                const pHoldings = holdings.filter(h => h.portfolioId.toString() === p._id.toString());
-                const pValue = pHoldings.reduce((sum, h) => {
-                    const currentPrice = liveData.get(h.symbol)?.price || h.avgBuyPrice;
-                    return sum + (currentPrice * h.shares);
-                }, 0);
-                const pCost = pHoldings.reduce((sum, h) => sum + (h.avgBuyPrice * h.shares), 0);
-                const pChange = pCost > 0 ? ((pValue - pCost) / pCost) * 100 : 0;
-
-                return {
-                    ...p.toObject(),
-                    value: pValue,
-                    change: pChange
-                };
-            }),
+            portfolios: portfolioData,
+            activeMarket: activeMarkets.slice(0, 10), // Limit to avoid massive payload
             pending: {
                 trades: pendingTrades,
                 cash: pendingCash,
                 transfers: sentTransfers
+            },
+            user: {
+                firstName: auth.user.firstName,
+                lastName: auth.user.lastName,
+                status: auth.user.status,
+                headshotUrl: auth.user.headshotUrl
             }
         }, 200, origin);
-    } catch (error) {
+
+    } catch (error: any) {
         console.error("Dashboard API error:", error);
-        return corsResponse({ error: "Internal server error." }, 500, origin);
+        return corsResponse({ 
+            error: "Internal server error.", 
+            details: error.message 
+        }, 500, origin);
     }
 }

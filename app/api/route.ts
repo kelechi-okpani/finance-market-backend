@@ -23,48 +23,73 @@ export async function GET(request: NextRequest) {
                     setup: "POST /api/auth/setup (one-time admin creation)",
                     forgotPassword: "POST /api/auth/forgot-password — payload: { email }",
                     resetPassword: "POST /api/auth/reset-password — payload: { token, newPassword }",
+                    kyc: "POST /api/onboarding/kyc — unified KYC onboarding",
                 },
                 user: {
+                    dashboard: "GET /api/dashboard",
+                    market: "GET /api/dashboard/market",
+                    market_one: "GET /api/dashboard/market/:id",
+
+                
+                   deposit: "GET /api/dashboard/funds/deposit",
+                   resettlement: "GET /api/dashboard/funds/resettlement",
+                   withdrawal: "GET /api/dashboard/funds/withdrawal",
+
+
+                    new_portfolio: "POST  /api/dashboard/portfolios",
+                    get_portfolio: "GET  /api/dashboard/portfolios",
+                    get_one_portfolio: "GET  /api/dashboard/portfolios/:id",
+                    transfer_porfolio: "POST /api/dashboard/portfolios/transfer",
+
+                    
                     data: "GET /api/user/data — returns { Portfolio, Investment, Transaction }",
+
+                 
+
+                   cart_item: "api/cart/:id",
+                   cart: "api/dashboard/cart/",
+                   cart_checkout: "api/dashboard/cart/checkout",
+
+
+
+
+
+                  
                 },
+
                 admin: {
-                    dashboard: "GET /api/admin/dashboard",
+                    dashboard: "GET /api/admin/overview",
                     requests: "GET /api/admin/requests (List account requests)",
                     reviewRequest: "PUT /api/admin/requests/:id (Approve/Reject)",
-                    users: "GET /api/admin/users",
-                    updateUser: "PUT /api/admin/users/:id",
-                    kyc: "GET /api/admin/kyc (List users + their KYC docs)",
-                    // fin_market: "/api/admin/finance",
 
+                    users: "GET /api/admin/users",
+                    users_one: "GET /api/admin/users/:id",
+
+                    updateUser: "PUT /api/admin/users/:id",
+
+
+                    kyc: "GET /api/admin/kyc (List users + their KYC docs)",
                     market: "GET /api/admin/finance",
                     market_one: "GET /api/admin/finance/:id",
-                    // market: "GET /api/admin/market/stocks (Manage market data)",
-
                     settings: "GET/PUT /api/admin/settings (Site-wide controls)",
+
+
+                    trade: "GET /api/admin/trades",
+                    trade_one: "GET /api/admin/trades/:id",
+
+                    portolio_transfer: "GET /api/admin/transfers",
+                    portolio_transfer_one: "PATCH /api/admin/transfers/:id",
+
+
+                   inheritance: "/api/inheritance",
+
                 },
-                onboarding: {
-                    kyc: "POST /api/onboarding/kyc — unified KYC onboarding",
-                    step7: "POST /api/onboarding/step7",
-                    step8: "POST /api/onboarding/step8",
-                    step9: "POST /api/onboarding/step9",
-                    step10: "POST /api/onboarding/step10",
-                    "step11-12": "POST /api/onboarding/step11-12",
-                    "step13-14": "POST /api/onboarding/step13-14",
-                    step15: "POST /api/onboarding/step15",
-                    status: "GET /api/onboarding/status",
-                },
-                dashboard: "GET /api/dashboard",
-                portfolio: "GET/POST /api/portfolios",
-                market: {
-                    stocks: "GET /api/market/stocks",
-                    bonds: "GET /api/market/bonds",
-                    etfs: "GET /api/market/etfs",
-                    mutualFunds: "GET /api/market/mutual-funds",
-                    commodities: "GET /api/market/commodities",
-                    search: "GET /api/market/search?q=...",
-                    screener: "GET /api/market/screener",
-                },
-                investments: "GET /api/investments",
+
+              
+               
+             
+           
+              
                 funds: {
                     summary: "GET /api/funds",
                     transaction: "POST /api/funds",
