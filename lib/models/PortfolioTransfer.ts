@@ -8,6 +8,7 @@ export interface IPortfolioTransfer extends Document {
     recipientFirstName?: string;
     recipientLastName?: string;
     transferInstruction?: string;
+    adminNotes?: string;
     assets: Array<{
         symbol: string;
         shares: number;
@@ -33,6 +34,7 @@ const PortfolioTransferSchema = new Schema<IPortfolioTransfer>(
         recipientFirstName: { type: String, trim: true },
         recipientLastName: { type: String, trim: true },
         transferInstruction: { type: String, trim: true },
+        adminNotes: { type: String, trim: true },
         assets: [
             {
                 symbol: { type: String, required: true, uppercase: true },

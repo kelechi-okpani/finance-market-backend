@@ -1,17 +1,15 @@
 import { NextRequest } from "next/server";
 import mongoose from "mongoose";
 import connectDB from "@/lib/db";
+// Force model registration
+import "@/lib/models/User";
+import "@/lib/models/Portfolio";
 import Portfolio from "@/lib/models/Portfolio";
-import Holding from "@/lib/models/Holding";
 import PortfolioTransfer from "@/lib/models/PortfolioTransfer";
 import User from "@/lib/models/User";
 import { requireAdmin } from "@/lib/auth";
 import { corsResponse } from "@/lib/cors";
 
-/**
- * PATCH /api/admin/transfers/[id]
- * Process a transfer: 'accepted' (Approve) or 'rejected' (Deny)
- */
 export async function PATCH(
     request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
@@ -23,11 +21,11 @@ export async function PATCH(
     const { id } = await params;
     const { action } = await request.json(); // 'accepted' | 'rejected'
 
+    await connectDB();
     const session = await mongoose.startSession();
     session.startTransaction();
 
     try {
-        await connectDB();
         const transfer = await PortfolioTransfer.findById(id).session(session);
 
         if (!transfer || transfer.status !== 'pending') {
@@ -42,31 +40,37 @@ export async function PATCH(
             const recipient = await User.findOne({ email: transfer.recipientEmail }).session(session);
             if (!recipient) throw new Error("Recipient account no longer exists.");
 
-            // 2. Migrate Portfolio Ownership
+            // 2. Prevent Duplicate Ownership (Optional but safe)
+            const previousOwnerId = portfolio.userId;
+
+            // 3. Migrate Portfolio Ownership
             portfolio.userId = recipient._id;
             portfolio.status = 'active';
             portfolio.source = 'transferred';
+            // If you track the name of the owner on the portfolio:
+            // portfolio.ownerName = `${recipient.firstName} ${recipient.lastName}`;
+            
             await portfolio.save({ session });
 
-            // 3. Migrate all Holdings in that portfolio
-            await Holding.updateMany(
-                { portfolioId: transfer.portfolioId },
-                { $set: { userId: recipient._id } },
-                { session }
-            );
+            // 4. Update User References (If your User model has a 'portfolios' array)
+            // Remove from old user, add to new user
+            await User.findByIdAndUpdate(previousOwnerId, { $pull: { portfolios: portfolio._id } }).session(session);
+            await User.findByIdAndUpdate(recipient._id, { $addToSet: { portfolios: portfolio._id } }).session(session);
 
-            // 4. Update Transfer Record
+            // 5. Update Transfer Record
             transfer.status = 'accepted';
             transfer.recipientId = recipient._id;
             transfer.resolvedAt = new Date();
         } 
         else if (action === 'rejected') {
-            // Unlocking the portfolio for the original user
+            // Unlock the portfolio for the original user
             portfolio.status = 'active';
             await portfolio.save({ session });
 
             transfer.status = 'rejected';
             transfer.resolvedAt = new Date();
+        } else {
+            throw new Error("Invalid action provided.");
         }
 
         await transfer.save({ session });
@@ -75,8 +79,11 @@ export async function PATCH(
         return corsResponse({ message: `Transfer ${action} successfully.` }, 200, origin);
 
     } catch (error: any) {
-        await session.abortTransaction();
-        return corsResponse({ error: error.message }, 500, origin);
+        if (session.inTransaction()) {
+            await session.abortTransaction();
+        }
+        console.error("Transfer PATCH Error:", error);
+        return corsResponse({ error: error.message || "Transfer processing failed." }, 500, origin);
     } finally {
         session.endSession();
     }

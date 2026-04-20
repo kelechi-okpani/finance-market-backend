@@ -1,102 +1,124 @@
 import { NextRequest } from "next/server";
 import mongoose from "mongoose";
 import connectDB from "@/lib/db";
+import User from "@/lib/models/User";
 import Portfolio from "@/lib/models/Portfolio";
-import Holding from "@/lib/models/Holding";
-import PortfolioInheritance from "@/lib/models/PortfolioInheritance";
+import PortfolioTransfer from "@/lib/models/PortfolioTransfer";
 import Transaction from "@/lib/models/Transaction";
 import { requireAdmin } from "@/lib/auth";
-import { corsResponse, corsOptionsResponse } from "@/lib/cors";
+import { corsResponse } from "@/lib/cors";
 
-export async function OPTIONS(request: NextRequest) {
-    return corsOptionsResponse(request.headers.get("origin"));
-}
-
-/**
- * PATCH /api/admin/inheritance/[id]
- * Approve or reject an inheritance claim.
- */
 export async function PATCH(
     request: NextRequest,
     { params }: { params: Promise<{ id: string }> }
 ) {
     const origin = request.headers.get("origin");
+    
+    // 1. Guard: Admin Only
     const auth = await requireAdmin(request);
     if (auth.error) return auth.error;
 
     const { id } = await params;
-    const { action, portfolioId, adminRemarks } = await request.json(); // action: 'completed' | 'rejected'
+    const { action, adminRemarks } = await request.json(); 
 
     await connectDB();
     const session = await mongoose.startSession();
     session.startTransaction();
 
     try {
-        const claim = await PortfolioInheritance.findById(id).session(session);
-        if (!claim || claim.status !== 'pending') {
-            throw new Error("Claim not found or already processed.");
+        // 2. Fetch the Transfer Request
+        const transferRequest = await PortfolioTransfer.findById(id).session(session);
+        if (!transferRequest || transferRequest.status !== 'pending') {
+            throw new Error("Transfer request not found or already processed.");
         }
+
+        // 3. Fetch the Portfolio using the ID from the request
+        const portfolio = await Portfolio.findById(transferRequest.portfolioId).session(session);
+        if (!portfolio) throw new Error("The portfolio being transferred no longer exists.");
 
         if (action === 'rejected') {
-            claim.status = 'rejected';
-            claim.adminNotes = adminRemarks || "Documentation verification failed.";
-            claim.resolvedAt = new Date();
-            await claim.save({ session });
+            // Logic for Rejection: Simply unlock the portfolio and mark request rejected
+            portfolio.status = 'active'; 
+            await portfolio.save({ session });
+
+            transferRequest.status = 'rejected';
+            transferRequest.adminNotes = adminRemarks || "Transfer request denied by administrator.";
+            transferRequest.resolvedAt = new Date();
+            await transferRequest.save({ session });
+
             await session.commitTransaction();
-            return corsResponse({ message: "Inheritance request rejected." }, 200, origin);
+            return corsResponse({ message: "Transfer request rejected successfully." }, 200, origin);
         }
 
-        // --- APPROVAL LOGIC ---
-        // 1. Identify the portfolio to move
-        const targetPortfolio = await Portfolio.findById(portfolioId || claim.portfolioId).session(session);
-        if (!targetPortfolio) throw new Error("Target portfolio not found.");
+        if (action === 'accepted') {
+            // 4. Find the Recipient (Beneficiary)
+            const recipient = await User.findOne({ email: transferRequest.recipientEmail }).session(session);
+            if (!recipient) throw new Error(`No user found with email: ${transferRequest.recipientEmail}`);
 
-        // 2. Change Portfolio Ownership
-        targetPortfolio.userId = claim.beneficiaryId;
-        targetPortfolio.source = 'inherited';
-        targetPortfolio.status = 'active';
-        await targetPortfolio.save({ session });
+            const previousOwnerId = portfolio.userId;
 
-        // 3. Migrate all holdings within that portfolio
-        await Holding.updateMany(
-            { portfolioId: targetPortfolio._id },
-            { $set: { userId: claim.beneficiaryId } },
-            { session }
-        );
+            // 5. UPDATE PORTFOLIO OWNERSHIP
+            // Because your assets are sub-documents in the Portfolio model, 
+            // they move to the new owner automatically here.
+            portfolio.userId = recipient._id;
+            portfolio.source = 'transferred'; // Matches your logic
+            portfolio.status = 'active';      // Moves from 'pending_transfer' to 'active'
+            
+            // Optional: Update 'addedAt' for assets to reflect the transfer date
+            portfolio.assets = portfolio.assets.map(asset => ({
+                ...asset,
+                addedAt: new Date()
+            }));
 
-        // 4. Update the claim status
-        claim.status = 'completed';
-        claim.portfolioId = targetPortfolio._id;
-        claim.resolvedAt = new Date();
-        claim.adminNotes = adminRemarks || "Inheritance finalized.";
-        await claim.save({ session });
+            await portfolio.save({ session });
 
-        // 5. Create Ledger entries for audit trail
-        await Transaction.create([
-            {
-                userId: claim.originalOwnerId,
-                portfolioId: targetPortfolio._id,
-                type: 'transfer',
-                amount: targetPortfolio.totalValue,
-                description: `Portfolio "${targetPortfolio.name}" inherited by beneficiary.`,
-                status: 'completed'
-            },
-            {
-                userId: claim.beneficiaryId,
-                portfolioId: targetPortfolio._id,
-                type: 'transfer',
-                amount: targetPortfolio.totalValue,
-                description: `Received portfolio "${targetPortfolio.name}" via inheritance.`,
-                status: 'completed'
-            }
-        ], { session });
+            // 6. SYNC USER MODELS (If you track portfolio arrays on User)
+            await User.findByIdAndUpdate(previousOwnerId, { 
+                $pull: { portfolios: portfolio._id } 
+            }).session(session);
+            
+            await User.findByIdAndUpdate(recipient._id, { 
+                $addToSet: { portfolios: portfolio._id } 
+            }).session(session);
 
-        await session.commitTransaction();
-        return corsResponse({ message: "Inheritance approved and assets moved." }, 200, origin);
+            // 7. FINALIZE TRANSFER RECORD
+            transferRequest.status = 'accepted';
+            transferRequest.recipientId = recipient._id;
+            transferRequest.resolvedAt = new Date();
+            transferRequest.adminNotes = adminRemarks || "Portfolio transfer completed successfully.";
+            await transferRequest.save({ session });
+
+            // 8. CREATE AUDIT LOG (Transactions)
+            await Transaction.insertMany([
+                {
+                    userId: previousOwnerId,
+                    portfolioId: portfolio._id,
+                    type: 'transfer',
+                    amount: portfolio.totalValue || 0,
+                    description: `Sent portfolio "${portfolio.name}" to ${transferRequest.recipientEmail}`,
+                    status: 'completed'
+                },
+                {
+                    userId: recipient._id,
+                    portfolioId: portfolio._id,
+                    type: 'transfer',
+                    amount: portfolio.totalValue || 0,
+                    description: `Received portfolio "${portfolio.name}" from admin-approved transfer.`,
+                    status: 'completed'
+                }
+            ], { session });
+
+            await session.commitTransaction();
+            return corsResponse({ message: "Portfolio and all assets transferred successfully." }, 200, origin);
+        }
+
+        throw new Error("Invalid action. Must be 'accepted' or 'rejected'.");
 
     } catch (error: any) {
-        await session.abortTransaction();
-        return corsResponse({ error: error.message || "Approval process failed." }, 500, origin);
+        // Rollback all changes if any step fails
+        if (session.inTransaction()) await session.abortTransaction();
+        console.error("TRANSFER_ERROR:", error.message);
+        return corsResponse({ error: error.message }, 500, origin);
     } finally {
         session.endSession();
     }
