@@ -4,16 +4,29 @@ export interface ITradeRequest extends Document {
     userId: mongoose.Types.ObjectId;
     type: "buy" | "sell";
     symbol: string;
-    companyName: string;
+    name: string;
     industry?: string; 
     logo?: string;     
     currency: string;  
     shares: number;
-    pricePerShare: number;
+    price: number;
     totalAmount: number;
     portfolioId: mongoose.Types.ObjectId;
     holdingId?: mongoose.Types.ObjectId;
     status: "pending" | "approved" | "rejected";
+
+    // --- Live Market Snapshot (New Fields) ---
+    marketPriceAtRequest: number; // mapping 'price'
+    change: number;
+    change_percent: number;
+    marketCap: number;
+    high: number;
+    low: number;
+    open: number;
+    prev_close: number;
+    isActive: boolean;
+    lastUpdated: Date;
+    
     adminRemarks?: string;
     createdAt: Date;
     updatedAt: Date;
@@ -38,7 +51,7 @@ const TradeRequestSchema = new Schema<ITradeRequest>(
             uppercase: true,
             trim: true 
         },
-        companyName: { 
+        name: { 
             type: String, 
             required: true,
             trim: true 
@@ -55,7 +68,7 @@ const TradeRequestSchema = new Schema<ITradeRequest>(
             required: true, 
             min: [0.000001, "Shares must be greater than 0"] 
         },
-        pricePerShare: { 
+        price: { 
             type: Number, 
             required: true, 
             min: 0 
@@ -65,6 +78,20 @@ const TradeRequestSchema = new Schema<ITradeRequest>(
             required: true, 
             min: 0 
         },
+
+        // --- Market Snapshot Fields ---
+        marketPriceAtRequest: { type: Number }, 
+        change: { type: Number },
+        change_percent: { type: Number },
+        marketCap: { type: Number },
+        high: { type: Number },
+        low: { type: Number },
+        open: { type: Number },
+        prev_close: { type: Number },
+        isActive: { type: Boolean, default: false },
+        lastUpdated: { type: Date, default: Date.now },
+
+
         portfolioId: { 
             type: Schema.Types.ObjectId, 
             ref: "Portfolio", 
@@ -87,8 +114,8 @@ const TradeRequestSchema = new Schema<ITradeRequest>(
 
 // Virtual for calculating the subtotal if not provided
 TradeRequestSchema.pre("save", function(next) {
-    if (this.shares && this.pricePerShare) {
-        this.totalAmount = this.shares * this.pricePerShare;
+    if (this.shares && this.price) {
+        this.totalAmount = this.shares * this.price;
     }
     // next();
 });

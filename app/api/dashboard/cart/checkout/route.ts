@@ -69,15 +69,24 @@ export async function POST(request: NextRequest) {
             const tradeReq = await TradeRequest.create({
                 userId: user._id,
                 type: item.type,
+                portfolioId: item.portfolioId,
+                status: "pending",
                 symbol: item.symbol.toUpperCase(),
-                companyName: item.companyName,
+                name: item.name,
                 industry: item.industry,
                 logo: item.logo,
                 shares: item.shares,
-                pricePerShare: item.pricePerShare,
+                price: item.price, 
                 totalAmount: item.totalAmount,
-                portfolioId: item.portfolioId,
-                status: "pending"
+                currency: item.currency || "USD",
+                change: item.change || 0,
+                change_percent: item.change_percent || 0,
+                marketCap: item.marketCap,
+                high: item.high,
+                low: item.low,
+                open: item.open,
+                prev_close: item.prev_close,
+                lastUpdated: new Date()
             });
 
             results.push({

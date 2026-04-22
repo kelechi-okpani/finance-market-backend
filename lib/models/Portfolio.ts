@@ -1,13 +1,27 @@
 import mongoose, { Schema, Document, Model } from "mongoose";
 
+
 export interface IPortfolioAsset {
+  // Core Identity
   symbol: string;
   name: string;
-  logo?: string;
+  logo: string;
+  industry: string; 
+  type: string; 
   shares: number;
-  averagePrice: number; // Cost basis
-  totalCost: number;
+  averagePrice: number; 
+    price: number;
+  totalCost: number;   
+  currency: string;     
+  change: number;         
+  change_percent?: number;  
+  marketCap: number;
+  high: number;
+  low: number;
+  open: number;
+  prev_close: number;
   addedAt: Date;
+  lastUpdated: Date;
 }
 
 export interface IPortfolio extends Document {
@@ -15,8 +29,9 @@ export interface IPortfolio extends Document {
   name: string;
   description?: string;
   source?: string;
-  status: 'active' | 'closed' | 'pending_transfer';
+  status: 'active' | 'closed' | 'pending_transfer' | 'pending_claim';
   baseCurrency: string;
+
   assets: IPortfolioAsset[]; // MarketItems live here now
   totalValue: number;
   totalInvested: number;
@@ -30,7 +45,7 @@ const PortfolioSchema = new Schema<IPortfolio>(
     name: { type: String, required: true, trim: true },
     description: { type: String, trim: true },
     source: { type: String, trim: true },
-    status: { type: String, enum: ['active', 'closed', 'pending_transfer'], default: 'active' },
+    status: { type: String, enum: ['active', 'closed', 'pending_transfer', 'pending_claim'], default: 'active' },
     baseCurrency: { type: String, default: 'USD' },
     assets: [
       {
@@ -41,6 +56,22 @@ const PortfolioSchema = new Schema<IPortfolio>(
         averagePrice: { type: Number, required: true },
         totalCost: { type: Number },
         addedAt: { type: Date, default: Date.now },
+
+        // --- Live Market Data Fields ---
+        price: { type: Number , required: true},          // Current Market Price
+        change: { type: Number , required: true},         // Price change (numerical)
+        change_percent: { type: Number , required: true}, // Price change (percentage)
+        industry: { type: String , required: true},
+        marketCap: { type: Number , required: true},
+        currency: { type: String, default: 'USD' },
+        type: { type: String , required: true},           // e.g., 'stock', 'crypto'
+        high: { type: Number , required: true},           // Daily high
+        low: { type: Number , required: true},            // Daily low
+        open: { type: Number , required: true},
+        prev_close: { type: Number , required: true},
+        isActive: { type: Boolean, default: false },
+        lastUpdated: { type: Date, default: Date.now },
+
       },
     ],
     totalValue: { type: Number, default: 0 },

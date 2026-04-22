@@ -8,7 +8,7 @@ export interface ITransaction extends Document {
   amount: number;
   symbol?: string;        // Added for trade tracking
   shares?: number;        // Added for trade tracking
-  pricePerShare?: number; // Added for trade tracking
+  price?: number; // Added for trade tracking
   currency: string;
   description?: string;
   referenceId?: string;   // e.g., tradeRequestId or bank transfer ref
@@ -40,7 +40,7 @@ const TransactionSchema = new Schema<ITransaction>(
     },
     symbol: { type: String, uppercase: true },
     shares: { type: Number },
-    pricePerShare: { type: Number },
+    price: { type: Number },
     currency: { type: String, default: 'USD' },
     description: { type: String, trim: true },
     referenceId: { type: String, index: true },
